@@ -5,6 +5,8 @@ import { CustomerMenuSection } from "@/components/customer/customer-menu-section
 import { OffersCarousel } from "@/components/customer/offers-carousel";
 import { MapPin, Phone, Clock, Star, ArrowLeft } from "lucide-react";
 
+import { getSanityMenuItems, type SanityMenuItem } from "@/lib/sanity/sanity-store.service";
+
 interface Props {
   params: Promise<{ id: string }>;
 }
@@ -24,28 +26,53 @@ export default async function RestaurantDetailPage({ params }: Props) {
     notFound();
   }
 
-  // Fetch food categories + items
+  // Fetch food categories + items from Supabase
   const { data: foodCategories } = await supabase
     .from("food_categories")
     .select("*")
     .eq("restaurant_id", id)
     .order("display_order");
 
-  const { data: foodItems } = await supabase
+  const { data: dbFoodItems } = await supabase
     .from("food_items")
     .select("*, food_images(*), food_categories(name)")
     .eq("restaurant_id", id)
     .eq("is_available", true)
     .order("display_order");
 
+  // Fetch items uploaded by owner via Sanity CMS / Owner Portal
+  const sanityMenuItems = await getSanityMenuItems();
+  const formattedSanityItems = (sanityMenuItems || []).map((s: SanityMenuItem) => ({
+    id: s._id,
+    restaurant_id: id,
+    food_category_id: null,
+    name: s.name,
+    description: s.description || null,
+    price: s.price,
+    is_veg: s.isVeg,
+    is_available: s.isAvailable,
+    preparation_time_minutes: parseInt(s.preparationTime || "15", 10),
+    is_popular: s.isPopular || false,
+    display_order: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    food_images: s.imageUrl
+      ? [{ id: s._id, food_item_id: s._id, storage_path: s.imageUrl, display_order: 0 }]
+      : [],
+    food_categories: s.categoryTitle ? { name: s.categoryTitle } : null,
+  }));
+
+  // Combine items to ensure any item uploaded by restaurant owner is displayed
+  const foodItems = [...(dbFoodItems || []), ...formattedSanityItems];
+
   // Extract food image URLs for the offers slider
-  const foodImageUrls = (foodItems || [])
+  const foodImageUrls = foodItems
     .flatMap((item) => (item.food_images as Array<{ storage_path: string }> | null) || [])
     .map((img) => img.storage_path)
     .filter(Boolean);
 
   // Group food items by category
-  const formattedItems = (foodItems || []).map((item) => ({
+  const formattedItems = foodItems.map((item) => ({
     ...item,
     category_name: (item.food_categories as { name: string } | null)?.name || null,
   }));
