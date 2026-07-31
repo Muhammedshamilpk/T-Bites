@@ -23,9 +23,9 @@ export const useLocationStore = create<LocationStore>()(
   persist(
     (set) => ({
       location: {
-        address: "Pannikkodan House, Yelahanka",
-        city: "Bangalore",
-        pincode: "560064",
+        address: "",
+        city: "",
+        pincode: "",
         isSet: false, // Triggers location modal on first visit if false
       },
       isModalOpen: false,
@@ -38,7 +38,7 @@ export const useLocationStore = create<LocationStore>()(
       closeModal: () => set({ isModalOpen: false }),
     }),
     {
-      name: "tbites-delivery-location-v1",
+      name: "tbites-delivery-location-v2",
     }
   )
 );

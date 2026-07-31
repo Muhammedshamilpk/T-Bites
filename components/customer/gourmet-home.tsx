@@ -113,8 +113,8 @@ export function GourmetHome({ userName }: { userName?: string }) {
   const [searchQuery, setSearchQuery] = useState("");
   const { location, openModal } = useLocationStore();
 
-  const isLoggedIn = Boolean(userName && userName.trim().length > 0 && userName !== "Valued Customer");
-  const nameToDisplay = userName || "Valued Customer";
+  const isLoggedIn = Boolean(userName && userName.trim().length > 0 && userName !== "Valued Customer" && userName !== "User");
+  const nameToDisplay = userName || "User";
   const hour = new Date().getHours();
   const timePrefix =
     hour >= 5 && hour < 12
@@ -147,7 +147,7 @@ export function GourmetHome({ userName }: { userName?: string }) {
                 className="flex items-center gap-1 text-[#994700] hover:opacity-80 transition-opacity text-left"
               >
                 <span className="text-base font-extrabold truncate max-w-[180px] sm:max-w-xs">
-                  {location.address || "Downtown Loft"}
+                  {location.isSet && location.address ? location.address : "Select Location"}
                 </span>
                 <ChevronDown className="w-4 h-4 shrink-0" />
               </button>

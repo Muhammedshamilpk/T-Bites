@@ -130,5 +130,5 @@ export async function getUserProfileName(): Promise<string> {
     // Ignore
   }
 
-  return user.email?.split("@")[0] || "Valued Customer";
+  return user.email?.split("@")[0] || "User";
 }

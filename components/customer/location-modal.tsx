@@ -94,10 +94,10 @@ export function LocationModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-      <div className="w-full max-w-lg bg-background rounded-t-[2.5rem] sm:rounded-3xl border border-border shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+      <div className="w-full max-w-lg bg-background rounded-t-[2.5rem] sm:rounded-3xl border border-border shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300 max-h-[85vh] flex flex-col">
         {/* Header */}
-        <div className="p-6 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b border-border flex items-center justify-between">
+        <div className="p-6 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b border-border flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/25">
               <MapPin className="w-5 h-5" />
@@ -118,8 +118,8 @@ export function LocationModal() {
           )}
         </div>
 
-        {/* Content */}
-        <div className="p-6 space-y-6">
+        {/* Content Body - Scrollable with bottom padding for mobile nav */}
+        <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(85vh-80px)] pb-24 sm:pb-6">
           {!showManualForm ? (
             <div className="space-y-4">
               {/* Detect Current Location CTA */}
@@ -154,7 +154,7 @@ export function LocationModal() {
               </button>
 
               {/* Current Saved Location Preview */}
-              {location.isSet && (
+              {location.isSet && location.address && (
                 <div className="p-4 rounded-2xl bg-surface/50 border border-border space-y-1">
                   <span className="text-[10px] font-bold text-primary uppercase tracking-wider">ACTIVE LOCATION</span>
                   <p className="text-xs font-bold text-foreground truncate">{location.address}</p>
@@ -174,7 +174,7 @@ export function LocationModal() {
                   required
                   value={manualAddress}
                   onChange={(e) => setManualAddress(e.target.value)}
-                  placeholder="e.g. Pannikkodan House, Mampad"
+                  placeholder="e.g. Flat / Street Name, Area"
                   className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-foreground text-xs font-medium focus:outline-none focus:border-primary"
                 />
               </div>
