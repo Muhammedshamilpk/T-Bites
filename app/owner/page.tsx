@@ -16,10 +16,10 @@ export default function OwnerPortalPage() {
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-background">
-      {/* Left Branding Panel (Solid Pure Red) */}
-      <div className="hidden lg:flex flex-col justify-between p-12 bg-red-600 text-white relative overflow-hidden">
+      {/* Left Branding Panel (Rich Red Gradient) */}
+      <div className="hidden lg:flex flex-col justify-between p-12 bg-gradient-to-br from-red-600 via-red-700 to-red-950 text-white relative overflow-hidden">
         <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-white/10 blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-black/10 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-black/30 blur-3xl pointer-events-none" />
 
         {/* Top Logo */}
         <div className="relative z-10 flex items-center justify-between">

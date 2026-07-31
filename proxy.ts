@@ -1,7 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-const PUBLIC_ROUTES = ["/", "/login", "/signup", "/restaurants", "/owner", "/dashboard", "/admin/login"];
+const PUBLIC_ROUTES = [
+  "/",
+  "/login",
+  "/signup",
+  "/restaurants",
+  "/search",
+  "/cart",
+  "/notifications",
+  "/owner",
+  "/dashboard",
+  "/admin/login",
+];
 const AUTH_ROUTES = ["/login", "/signup"];
 
 export default async function proxy(request: NextRequest) {
