@@ -204,15 +204,22 @@ export async function placeDirectOrderAction(payload: {
     };
   }
 
-  // Save order directly into Sanity CMS for authenticated user
+  const subtotal = payload.items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const deliveryFee = subtotal > 299 || subtotal === 0 ? 0 : 30;
+  const total = subtotal + deliveryFee;
+
+  // Save order directly into Sanity CMS for authenticated user, referencing target restaurant
   const sanityRes = await createSanityOrderAction({
+    restaurantId: payload.restaurant_id,
     customerName: payload.customer_name,
     customerPhone: payload.customer_phone,
     addressLine: payload.address_line,
     city: payload.city,
     pincode: payload.pincode,
     items: payload.items,
-  });
+    subtotal,
+    total,
+  }, payload.restaurant_id);
 
   let customerId = user?.id;
   if (!customerId && demoCookie) {
@@ -221,10 +228,6 @@ export async function placeDirectOrderAction(payload: {
       customerId = parsed.id;
     } catch {}
   }
-
-  const subtotal = payload.items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const deliveryFee = subtotal > 299 || subtotal === 0 ? 0 : 30;
-  const total = subtotal + deliveryFee;
 
   // Insert address
   // Optional Supabase DB sync (silently skipped if tables are dropped)
@@ -277,6 +280,8 @@ export async function placeDirectOrderAction(payload: {
   revalidatePath("/orders");
   revalidatePath("/dashboard/orders");
   revalidatePath("/dashboard");
+  revalidatePath("/admin/orders");
+  revalidatePath("/admin");
 
   return {
     success: true,

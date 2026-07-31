@@ -3,6 +3,8 @@ import { menuItemSchema } from "./menuItem";
 import { orderSchema } from "./order";
 import { categorySchema } from "./category";
 import { dashboardSettingsSchema } from "./dashboardSettings";
+import { restaurantOwnerSchema } from "./restaurantOwner";
+import { customerSchema } from "./customer";
 
 export const schemaTypes = [
   restaurantSchema,
@@ -10,4 +12,6 @@ export const schemaTypes = [
   orderSchema,
   categorySchema,
   dashboardSettingsSchema,
+  restaurantOwnerSchema,
+  customerSchema,
 ];

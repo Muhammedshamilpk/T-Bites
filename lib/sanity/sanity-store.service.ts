@@ -411,6 +411,9 @@ export async function createSanityOrderAction(orderData: any, targetRestaurantId
     });
 
     revalidatePath("/dashboard/orders");
+    revalidatePath("/dashboard");
+    revalidatePath("/admin/orders");
+    revalidatePath("/admin");
     return { success: true, order: created };
   } catch (error: any) {
     console.warn("Sanity order creation notice:", error?.message);

@@ -1,32 +1,41 @@
-import { createClient } from "@/lib/supabase/server";
-import { sanityClient } from "@/lib/sanity/client";
-import { User, Mail, Phone, ShoppingBag, Calendar } from "lucide-react";
+import { sanityFetch } from "@/lib/sanity/client";
+import { User, Phone, ShoppingBag, Mail } from "lucide-react";
+
+export const revalidate = 0; // Disable static cache for live admin user directory
 
 export default async function AdminUsersPage() {
-  // 1. Fetch Customer profiles from Supabase
-  const supabase = await createClient();
-  const { data: customerProfiles } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("role", "customer")
-    .order("created_at", { ascending: false });
+  // 1. Fetch all Customer documents from Sanity CMS production dataset
+  const [sanityCustomers, sanityOrders] = await Promise.all([
+    sanityFetch<any[]>({
+      query: `*[_type == "customer"] | order(_createdAt desc)`,
+      fallback: [],
+    }),
+    sanityFetch<any[]>({
+      query: `*[_type == "order"] { customerName, customerPhone, totalAmount }`,
+      fallback: [],
+    }),
+  ]);
 
-  // 2. Fetch Customer orders from Sanity CMS Lake to count orders per customer
-  const orders = await sanityClient.fetch(
-    `*[_type == "order"]{
-      customerName,
-      customerPhone,
-      totalAmount
-    }`
-  );
+  const customerMap = new Map<string, { name: string; email: string; phone: string; orderCount: number; totalSpent: number }>();
 
-  const customerMap = new Map<string, { name: string; phone: string; orderCount: number; totalSpent: number }>();
+  // Add registered customers first
+  sanityCustomers.forEach((cust: any) => {
+    const key = cust.phone || cust.email || cust._id;
+    customerMap.set(key, {
+      name: cust.fullName || "Registered Customer",
+      email: cust.email || "Registered Account",
+      phone: cust.phone || "Verified Contact",
+      orderCount: 0,
+      totalSpent: 0,
+    });
+  });
 
   // Aggregate orders placed by customers
-  orders?.forEach((ord: any) => {
+  sanityOrders.forEach((ord: any) => {
     const key = ord.customerPhone || ord.customerName || "Guest Customer";
     const existing = customerMap.get(key) || {
       name: ord.customerName || "Customer",
+      email: "Customer Account",
       phone: ord.customerPhone || "Verified Contact",
       orderCount: 0,
       totalSpent: 0,
@@ -36,22 +45,21 @@ export default async function AdminUsersPage() {
     customerMap.set(key, existing);
   });
 
-  // Combine registered customer profiles & active ordering customers
   const customersList = Array.from(customerMap.values());
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-black text-foreground">Customer Users & Ordering Food Account Directory</h1>
+        <h1 className="text-3xl font-black text-foreground">Registered Customers & Ordering Accounts</h1>
         <p className="text-foreground-muted text-sm mt-1">
-          Super Admin Directory of customers who register, log in, and place food orders on T-Bites.
+          Super Admin Directory of customers who register, log in, and place food orders on T-Bites platform.
         </p>
       </div>
 
       {customersList.length === 0 ? (
         <div className="text-center py-16 rounded-3xl border border-dashed border-border bg-background">
           <div className="text-5xl mb-3">🛍️</div>
-          <p className="text-foreground-muted font-bold text-sm">No customer orders placed yet.</p>
+          <p className="text-foreground-muted font-bold text-sm">No registered customers or orders placed yet.</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-3xl border border-border bg-background shadow-xs">
@@ -59,7 +67,7 @@ export default async function AdminUsersPage() {
             <thead>
               <tr className="bg-surface border-b border-border text-xs font-black text-foreground-muted uppercase tracking-wider">
                 <th className="px-6 py-4">Customer Name</th>
-                <th className="px-6 py-4">Contact Phone</th>
+                <th className="px-6 py-4">Email / Phone</th>
                 <th className="px-6 py-4">Total Orders Placed</th>
                 <th className="px-6 py-4">Total Volume Spent</th>
                 <th className="px-6 py-4">Status</th>
@@ -69,13 +77,17 @@ export default async function AdminUsersPage() {
               {customersList.map((c: any, idx: number) => (
                 <tr key={idx} className="hover:bg-surface/50 transition-colors">
                   <td className="px-6 py-4 font-black text-foreground flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold shrink-0">
                       <User className="w-4 h-4" />
                     </div>
                     <span>{c.name}</span>
                   </td>
-                  <td className="px-6 py-4 text-foreground-muted">
+                  <td className="px-6 py-4 text-foreground-muted space-y-1">
                     <span className="flex items-center gap-1">
+                      <Mail className="w-3.5 h-3.5" />
+                      {c.email}
+                    </span>
+                    <span className="flex items-center gap-1 text-[11px]">
                       <Phone className="w-3.5 h-3.5" />
                       {c.phone}
                     </span>

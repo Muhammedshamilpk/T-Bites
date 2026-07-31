@@ -55,10 +55,10 @@ export default async function RestaurantDetailPage({ params }: Props) {
     .order("display_order");
 
   // 4. Fetch items uploaded by owner via Sanity CMS target dataset
-  const targetDataset = restaurant.datasetName || "production";
-  const sanityMenuItems = await getSanityMenuItems(targetDataset);
+  const targetRestaurantId = restaurant._id || restaurant.id || id;
+  const sanityMenuItems = await getSanityMenuItems(targetRestaurantId);
 
-  console.log(`[RESTAURANT DETAIL LOG] ID: ${id} | Name: ${restaurant.name} | Dataset: ${targetDataset} | Sanity Menu Items Count: ${sanityMenuItems.length}`);
+  console.log(`[RESTAURANT DETAIL LOG] ID: ${id} | Name: ${restaurant.name} | Target ID: ${targetRestaurantId} | Sanity Menu Items Count: ${sanityMenuItems.length}`);
 
   const formattedSanityItems = (sanityMenuItems || []).map((s: SanityMenuItem) => ({
     id: s._id,

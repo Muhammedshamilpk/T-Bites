@@ -1,22 +1,25 @@
-import { sanityClient } from "@/lib/sanity/client";
+import { sanityFetch } from "@/lib/sanity/client";
 import { Store, ShoppingBag, User, Phone, MapPin, Clock, CheckCircle2, ShieldAlert } from "lucide-react";
 
+export const revalidate = 0; // Disable static cache for live admin orders monitoring
+
 export default async function AdminOrdersPage() {
-  const orders = await sanityClient.fetch(
-    `*[_type == "order"]{
+  const orders = await sanityFetch<any[]>({
+    query: `*[_type == "order"] {
       _id,
-      orderNumber,
+      "orderNumber": select(defined(orderId) => orderId, _id),
       customerName,
       customerPhone,
       deliveryAddress,
       totalAmount,
-      status,
-      createdAt,
-      items,
+      "status": select(defined(orderStatus) => orderStatus, status),
+      "createdAt": select(defined(orderTime) => orderTime, _createdAt),
+      "items": select(defined(orderedItems) => orderedItems, items),
       "restaurantName": restaurant->name,
       "restaurantAddress": restaurant->address
-    } | order(createdAt desc)`
-  );
+    } | order(createdAt desc)`,
+    fallback: [],
+  });
 
   return (
     <div className="space-y-6">
@@ -67,7 +70,7 @@ export default async function AdminOrdersPage() {
                     <div className="flex flex-col">
                       <span className="font-black text-orange-600 flex items-center gap-1.5 text-sm">
                         <Store className="w-4 h-4 text-orange-500" />
-                        {ord.restaurantName || "T-Bites Kitchen"}
+                        {ord.restaurantName || "T-Bites Partner Kitchen"}
                       </span>
                       {ord.restaurantAddress && (
                         <span className="text-[10px] text-foreground-muted truncate max-w-xs">
@@ -105,13 +108,13 @@ export default async function AdminOrdersPage() {
                       <div className="space-y-1">
                         {ord.items.map((item: any, i: number) => (
                           <div key={i} className="text-foreground font-medium text-[11px] flex justify-between gap-2">
-                            <span className="truncate">• {item.food_name || item.name}</span>
+                            <span className="truncate">• {item.foodName || item.food_name || item.name}</span>
                             <span className="font-bold shrink-0">x{item.quantity}</span>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <span className="text-foreground-muted italic">Standard Order</span>
+                      <span className="text-foreground-muted italic">Standard Food Order</span>
                     )}
                   </td>
 
@@ -123,14 +126,14 @@ export default async function AdminOrdersPage() {
                   {/* Status */}
                   <td className="px-6 py-4">
                     <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1.5 w-fit ${
-                      ord.status === "cancelled" || ord.status === "rejected"
+                      ord.status === "cancelled" || ord.status === "rejected" || ord.status === "Cancelled"
                         ? "bg-red-100 text-red-800"
-                        : ord.status === "delivered"
+                        : ord.status === "delivered" || ord.status === "Delivered"
                           ? "bg-emerald-100 text-emerald-800"
                           : "bg-orange-100 text-orange-800 animate-pulse"
                     }`}>
                       {ord.status === "cancelled" ? <ShieldAlert className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
-                      {ord.status || "placed"}
+                      {ord.status || "Preparing"}
                     </span>
                   </td>
                 </tr>

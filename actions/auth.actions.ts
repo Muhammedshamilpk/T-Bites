@@ -104,6 +104,22 @@ export async function signup(
     console.error("Profile upsert error:", profileError);
   }
 
+  // 4.5 Create Customer document in Sanity CMS production dataset
+  try {
+    const { sanityClient } = await import("@/lib/sanity/client");
+    await sanityClient.create({
+      _type: "customer",
+      supabaseUserId: userId,
+      fullName: full_name,
+      email: email.toLowerCase().trim(),
+      phone: phone.trim() || "",
+      role: role || "customer",
+      createdAt: new Date().toISOString(),
+    });
+  } catch (sanityErr) {
+    console.warn("Sanity customer creation notice:", sanityErr);
+  }
+
   // 5. Authenticate session with Supabase Auth or session cookie
   const supabase = await createClient();
   const { error: signInError } = await supabase.auth.signInWithPassword({
