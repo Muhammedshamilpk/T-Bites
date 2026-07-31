@@ -1,13 +1,12 @@
-import { getCurrentUser } from "@/lib/supabase/server";
 import { getSanityOrders } from "@/lib/sanity/sanity-store.service";
+import { getEffectiveRestaurantIdFromCookies } from "@/lib/sanity/storeResolver";
 import { SanityOrdersManager } from "@/components/sanity/sanity-orders-manager";
 
-export default async function DashboardOrdersPage() {
-  // Supabase is used strictly for User Authentication
-  const user = await getCurrentUser();
+export const revalidate = 0; // Disable static caching for live kitchen orders
 
-  // All order data is read 100% directly from Sanity CMS Lake
-  const sanityOrders = await getSanityOrders();
+export default async function DashboardOrdersPage() {
+  const restaurantId = await getEffectiveRestaurantIdFromCookies();
+  const sanityOrders = await getSanityOrders(restaurantId || undefined);
 
   return (
     <div className="space-y-6">

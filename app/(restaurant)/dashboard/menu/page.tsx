@@ -1,8 +1,12 @@
 import { getSanityMenuItems } from "@/lib/sanity/sanity-store.service";
+import { getEffectiveRestaurantIdFromCookies } from "@/lib/sanity/storeResolver";
 import { SanityMenuManager } from "@/components/sanity/sanity-menu-manager";
 
-export default async function DashboardMenuPage() {
-  const sanityMenuItems = await getSanityMenuItems();
+export const revalidate = 0; // Disable caching so menu edits update live
 
-  return <SanityMenuManager initialItems={sanityMenuItems} />;
+export default async function DashboardMenuPage() {
+  const restaurantId = await getEffectiveRestaurantIdFromCookies();
+  const sanityMenuItems = await getSanityMenuItems(restaurantId || undefined);
+
+  return <SanityMenuManager initialItems={sanityMenuItems} restaurantId={restaurantId || undefined} />;
 }

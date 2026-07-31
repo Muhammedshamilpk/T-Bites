@@ -27,6 +27,7 @@ import { toast } from "@/hooks/use-toast";
 
 interface Props {
   initialItems: SanityMenuItem[];
+  restaurantId?: string;
 }
 
 interface DetailedDish extends SanityMenuItem {
@@ -45,7 +46,7 @@ const CATEGORIES = [
   "Chef's Specials",
 ];
 
-export function SanityMenuManager({ initialItems }: Props) {
+export function SanityMenuManager({ initialItems, restaurantId }: Props) {
   const [items, setItems] = useState<DetailedDish[]>(initialItems);
   const [activeCategory, setActiveCategory] = useState("All Items");
   const [showAddModal, setShowAddModal] = useState(false);

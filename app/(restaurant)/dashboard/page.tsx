@@ -5,27 +5,27 @@ import {
   getSanityOrders,
   getSanityMenuItems,
 } from "@/lib/sanity/sanity-store.service";
+import { getEffectiveRestaurantIdFromCookies } from "@/lib/sanity/storeResolver";
 import {
   ShoppingBag,
   TrendingUp,
-  Star,
+  UtensilsCrossed,
   Timer,
   ArrowRight,
-  Eye,
   Plus,
-  UtensilsCrossed,
-  AlertCircle,
 } from "lucide-react";
 
-export default async function DashboardOverview() {
-  // Supabase is used strictly for User Authentication
-  const user = await getCurrentUser();
+export const revalidate = 0; // Disable static caching for live dashboard metrics
 
-  // All store data is fetched 100% directly from Sanity CMS Lake
+export default async function DashboardOverview() {
+  const user = await getCurrentUser();
+  const restaurantId = await getEffectiveRestaurantIdFromCookies();
+
+  // All store data is fetched 100% directly from Sanity CMS Lake, filtered strictly by owner's restaurantId
   const [restaurantDetails, sanityOrders, sanityMenuItems] = await Promise.all([
-    getSanityRestaurantDetails(),
-    getSanityOrders(),
-    getSanityMenuItems(),
+    getSanityRestaurantDetails(restaurantId || undefined),
+    getSanityOrders(restaurantId || undefined),
+    getSanityMenuItems(restaurantId || undefined),
   ]);
 
   const restaurantName =
@@ -33,9 +33,7 @@ export default async function DashboardOverview() {
     (user?.user_metadata as any)?.restaurant_name ||
     "T-Bites Gourmet";
 
-  const storeStatus = restaurantDetails?.storeStatus || "Open";
-
-  // Calculate live order stats from Sanity CMS orders
+  // Calculate live order stats from owner's Sanity orders
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
@@ -62,14 +60,14 @@ export default async function DashboardOverview() {
           <div className="flex items-center gap-3 mb-2">
             <span className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
             <span className="font-black text-xs uppercase tracking-wider text-[#994700]">
-              Sanity CMS Live Sync
+              Sanity CMS Isolated Sync
             </span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-black text-[#251912] tracking-tight">
             Welcome back, {restaurantName}!
           </h1>
           <p className="text-xs sm:text-sm font-semibold text-[#584235] mt-1">
-            Here is your live kitchen operations summary and real-time orders feed.
+            Here is your isolated kitchen operations summary and real-time orders feed.
           </p>
         </div>
 
@@ -249,7 +247,7 @@ export default async function DashboardOverview() {
                               order.status === "preparing"
                                 ? "bg-orange-100 text-orange-700"
                                 : order.status === "placed" || order.status === "new"
-                                ? "bg-blue-100 text-blue-700"
+                                ? "bg-blue-100 text-[#251912]"
                                 : order.status === "delivered"
                                 ? "bg-green-100 text-green-700"
                                 : "bg-neutral-100 text-neutral-700"
@@ -265,7 +263,7 @@ export default async function DashboardOverview() {
               ) : (
                 <tr>
                   <td colSpan={5} className="py-12 text-center text-xs font-bold text-[#8c7263]">
-                    No recent orders. Placed customer orders will appear here automatically.
+                    No recent orders. Placed customer orders for your restaurant will appear here automatically.
                   </td>
                 </tr>
               )}
