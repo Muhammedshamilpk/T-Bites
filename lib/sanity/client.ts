@@ -13,29 +13,35 @@ const clientCache = new Map<string, SanityClient>();
 /**
  * Reusable Sanity Client Factory that returns a client for the given dataset.
  * Supports multi-tenant dynamic dataset targeting (e.g. production, restaurant_a, restaurant_b).
+ * Uses public client by default for read queries, and authenticated client for write operations.
  */
-export function getSanityClientForDataset(targetDataset?: string): SanityClient {
+export function getSanityClientForDataset(targetDataset?: string, useAuthToken = false): SanityClient {
   const target = (targetDataset && targetDataset.trim().length > 0) ? targetDataset.trim() : defaultDataset;
+  const cacheKey = `${target}_${useAuthToken ? "auth" : "public"}`;
 
-  if (clientCache.has(target)) {
-    return clientCache.get(target)!;
+  if (clientCache.has(cacheKey)) {
+    return clientCache.get(cacheKey)!;
   }
+
+  const activeToken = (writeToken && writeToken.trim().length > 0)
+    ? writeToken.trim()
+    : ((readToken && readToken.trim().length > 0) ? readToken.trim() : undefined);
 
   const client = createClient({
     projectId,
     dataset: target,
     apiVersion,
     useCdn: false,
-    token: writeToken || readToken,
-    perspective: "raw",
+    ...(useAuthToken && activeToken ? { token: activeToken } : {}),
+    perspective: "published",
   });
 
-  clientCache.set(target, client);
+  clientCache.set(cacheKey, client);
   return client;
 }
 
-/** Default global client (targets production dataset) */
-export const sanityClient = getSanityClientForDataset(defaultDataset);
+/** Default global client (targets production dataset with auth for server operations) */
+export const sanityClient = getSanityClientForDataset(defaultDataset, true);
 
 /** Dynamic image URL builder for a specific dataset */
 export function urlFor(source: any, targetDataset?: string) {
@@ -61,11 +67,19 @@ export async function sanityFetch<T>({
   datasetName?: string;
 }): Promise<T> {
   try {
-    const client = getSanityClientForDataset(datasetName);
-    const data = await client.fetch<T>(query, params);
-    return data || fallback;
+    // Try public query first for maximum reliability across hosts
+    const publicClient = getSanityClientForDataset(datasetName, false);
+    const data = await publicClient.fetch<T>(query, params);
+    return data ?? fallback;
   } catch (error) {
-    console.warn(`Sanity fetch notice [dataset: ${datasetName || defaultDataset}]:`, error);
-    return fallback;
+    // Try auth client if public query is restricted
+    try {
+      const authClient = getSanityClientForDataset(datasetName, true);
+      const authData = await authClient.fetch<T>(query, params);
+      return authData ?? fallback;
+    } catch (authError) {
+      console.warn(`Sanity fetch notice [dataset: ${datasetName || defaultDataset}]:`, authError);
+      return fallback;
+    }
   }
 }

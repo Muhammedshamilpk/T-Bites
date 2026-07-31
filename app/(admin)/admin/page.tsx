@@ -1,46 +1,63 @@
-import { sanityClient } from "@/lib/sanity/client";
+import { sanityFetch } from "@/lib/sanity/client";
 import { Store, Users, ClipboardList, Clock } from "lucide-react";
 import Link from "next/link";
+
+export const revalidate = 0; // Disable static cache for live admin statistics
 
 export default async function AdminDashboard() {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
   const [totalRestaurants, suspendedRestaurants, todayOrdersCount, totalUsers] = await Promise.all([
-    sanityClient.fetch(`count(*[_type == "restaurant"])`),
-    sanityClient.fetch(`count(*[_type == "restaurant" && status == "suspended"])`),
-    sanityClient.fetch(`count(*[_type == "order" && createdAt >= $todayStart])`, {
-      todayStart: todayStart.toISOString(),
+    sanityFetch<number>({
+      query: `count(*[_type == "restaurant"])`,
+      fallback: 0,
+      datasetName: "production",
     }),
-    sanityClient.fetch(`count(*[_type == "restaurantOwner"])`),
+    sanityFetch<number>({
+      query: `count(*[_type == "restaurant" && (status == "suspended" || status == "deactivated")])`,
+      fallback: 0,
+      datasetName: "production",
+    }),
+    sanityFetch<number>({
+      query: `count(*[_type == "order" && _createdAt >= $todayStart])`,
+      params: { todayStart: todayStart.toISOString() },
+      fallback: 0,
+      datasetName: "production",
+    }),
+    sanityFetch<number>({
+      query: `count(*[_type == "restaurantOwner"])`,
+      fallback: 0,
+      datasetName: "production",
+    }),
   ]);
 
   const stats = [
     {
       label: "Total Restaurants",
-      value: totalRestaurants || 0,
+      value: totalRestaurants,
       icon: <Store className="w-5 h-5" />,
       color: "text-primary bg-primary/10",
       href: "/admin/restaurants",
     },
     {
       label: "Suspended Stores",
-      value: suspendedRestaurants || 0,
+      value: suspendedRestaurants,
       icon: <Clock className="w-5 h-5" />,
       color: "text-[#994700] bg-orange-100",
-      highlight: (suspendedRestaurants || 0) > 0,
+      highlight: suspendedRestaurants > 0,
       href: "/admin/restaurants",
     },
     {
       label: "Today's Orders",
-      value: todayOrdersCount || 0,
+      value: todayOrdersCount,
       icon: <ClipboardList className="w-5 h-5" />,
       color: "text-emerald-700 bg-emerald-100",
       href: "/admin/restaurants",
     },
     {
       label: "Total Registered Accounts",
-      value: totalUsers || 0,
+      value: totalUsers,
       icon: <Users className="w-5 h-5" />,
       color: "text-blue-700 bg-blue-100",
       href: "/admin/users",
