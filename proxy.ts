@@ -8,6 +8,8 @@ const PUBLIC_ROUTES = [
   "/restaurants",
   "/search",
   "/cart",
+  "/orders",
+  "/checkout",
   "/notifications",
   "/owner",
   "/dashboard",

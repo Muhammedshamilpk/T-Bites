@@ -192,16 +192,6 @@ export async function placeDirectOrderAction(payload: {
     quantity: number;
   }>;
 }): Promise<ActionResult<{ orderId: string }>> {
-  // Save order directly into Sanity CMS
-  const sanityRes = await createSanityOrderAction({
-    customerName: payload.customer_name,
-    customerPhone: payload.customer_phone,
-    addressLine: payload.address_line,
-    city: payload.city,
-    pincode: payload.pincode,
-    items: payload.items,
-  });
-
   const user = await getCurrentUser();
   const cookieStore = await cookies();
   const demoCookie = cookieStore.get("tbites_demo_user")?.value;
@@ -213,6 +203,16 @@ export async function placeDirectOrderAction(payload: {
       error: "Authentication Required: Please sign in or create an account to place your food order.",
     };
   }
+
+  // Save order directly into Sanity CMS for authenticated user
+  const sanityRes = await createSanityOrderAction({
+    customerName: payload.customer_name,
+    customerPhone: payload.customer_phone,
+    addressLine: payload.address_line,
+    city: payload.city,
+    pincode: payload.pincode,
+    items: payload.items,
+  });
 
   let customerId = user?.id;
   if (!customerId && demoCookie) {
