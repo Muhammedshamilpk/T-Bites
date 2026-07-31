@@ -4,7 +4,7 @@ import { useActionState, useState, useRef } from "react";
 import Link from "next/link";
 import { login } from "@/actions/auth.actions";
 import type { AuthFormState } from "@/actions/auth.actions";
-import { Mail, Lock, Eye, EyeOff, Loader2, UserCheck, Store, Shield, Sparkles } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, Loader2, UserCheck, ArrowRight } from "lucide-react";
 
 export default function LoginPage() {
   const [state, action, pending] = useActionState<AuthFormState, FormData>(
@@ -36,12 +36,9 @@ export default function LoginPage() {
       </div>
 
       <div className="mb-6 space-y-2">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider">
-          <Sparkles className="w-3.5 h-3.5" /> Unified Login Portal
-        </div>
-        <h1 className="text-3xl font-extrabold text-foreground tracking-tight">Sign In to T-Bites</h1>
+        <h1 className="text-3xl font-extrabold text-foreground tracking-tight">Customer Sign In</h1>
         <p className="text-sm text-foreground-muted leading-relaxed">
-          Sign in below. Customers are routed to the <strong>Storefront</strong>, Restaurant Owners to the <strong>Kitchen Dashboard</strong>, and Super Admins to the <strong>Admin Portal</strong>.
+          Sign in to your account to browse gourmet menus, place orders, and track deliveries in real time.
         </p>
       </div>
 
@@ -54,12 +51,12 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* Main Login Form */}
+      {/* Customer Login Form */}
       <form ref={formRef} action={action} className="space-y-4">
         {/* Email */}
         <div>
           <label htmlFor="email" className="block text-xs font-bold text-foreground uppercase tracking-wider mb-1.5">
-            Email Address
+            Customer Email Address
           </label>
           <div className="relative">
             <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground-muted" />
@@ -118,57 +115,37 @@ export default function LoginPage() {
           className="w-full py-3.5 rounded-xl bg-primary text-white font-extrabold text-sm shadow-lg shadow-primary/25 hover:bg-primary-dark disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
         >
           {pending && <Loader2 className="w-4 h-4 animate-spin" />}
-          {pending ? "Authenticating..." : "Sign In"}
+          {pending ? "Signing in..." : "Sign In to Customer Account"}
         </button>
       </form>
 
-      {/* Quick Demo Logins Section */}
-      <div className="mt-8 pt-6 border-t border-border space-y-3">
-        <p className="text-xs font-bold text-foreground-muted uppercase tracking-wider text-center">
-          ⚡ Quick 1-Click Role Login Demo
-        </p>
-        <div className="grid grid-cols-3 gap-2">
-          {/* Customer */}
-          <button
-            type="button"
-            onClick={() => handleDemoPreset("customer@example.com", "Password123!")}
-            className="p-2.5 rounded-xl bg-surface border border-border hover:border-primary/50 text-foreground transition-all flex flex-col items-center gap-1 group text-center"
-          >
-            <UserCheck className="w-4 h-4 text-primary group-hover:scale-110 transition-transform" />
-            <span className="text-[11px] font-extrabold block">Customer</span>
-            <span className="text-[9px] text-foreground-muted">Goes to Store</span>
-          </button>
-
-          {/* Restaurant Owner */}
-          <button
-            type="button"
-            onClick={() => handleDemoPreset("owner@restaurant.com", "OwnerSecret123!")}
-            className="p-2.5 rounded-xl bg-surface border border-border hover:border-orange-500/50 text-foreground transition-all flex flex-col items-center gap-1 group text-center"
-          >
-            <Store className="w-4 h-4 text-orange-500 group-hover:scale-110 transition-transform" />
-            <span className="text-[11px] font-extrabold block">Owner</span>
-            <span className="text-[9px] text-foreground-muted">Goes to Kitchen</span>
-          </button>
-
-          {/* Super Admin */}
-          <button
-            type="button"
-            onClick={() => handleDemoPreset("superadmin@tbites.com", "SuperAdminSecret123!")}
-            className="p-2.5 rounded-xl bg-surface border border-border hover:border-purple-500/50 text-foreground transition-all flex flex-col items-center gap-1 group text-center"
-          >
-            <Shield className="w-4 h-4 text-purple-500 group-hover:scale-110 transition-transform" />
-            <span className="text-[11px] font-extrabold block">Super Admin</span>
-            <span className="text-[9px] text-foreground-muted">Goes to Admin</span>
-          </button>
-        </div>
+      {/* Quick Demo Customer Login */}
+      <div className="mt-6 pt-5 border-t border-border">
+        <button
+          type="button"
+          onClick={() => handleDemoPreset("customer@example.com", "Password123!")}
+          className="w-full p-3 rounded-xl bg-surface border border-border hover:border-primary/50 text-foreground transition-all flex items-center justify-center gap-2 group text-sm font-bold"
+        >
+          <UserCheck className="w-4 h-4 text-primary group-hover:scale-110 transition-transform" />
+          <span>⚡ Quick 1-Click Customer Demo Login</span>
+        </button>
       </div>
 
-      <p className="mt-6 text-center text-xs text-foreground-muted">
-        Don&apos;t have an account?{" "}
-        <Link href="/signup" className="font-bold text-primary hover:underline transition-all">
-          Create Customer Account
-        </Link>
-      </p>
+      <div className="mt-6 flex flex-col gap-3 text-center text-xs text-foreground-muted">
+        <p>
+          Don&apos;t have an account?{" "}
+          <Link href="/signup" className="font-bold text-primary hover:underline transition-all">
+            Create Customer Account
+          </Link>
+        </p>
+
+        <div className="pt-3 border-t border-border flex items-center justify-between text-foreground-muted">
+          <span>Are you a Restaurant Owner or Admin?</span>
+          <Link href="/owner" className="font-extrabold text-primary hover:underline flex items-center gap-1">
+            Partner Portal <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

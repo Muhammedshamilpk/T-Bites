@@ -40,7 +40,7 @@ export default async function proxy(request: NextRequest) {
   }
 
   if (pathname.startsWith("/admin") && role !== "admin") {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL("/owner", request.url));
   }
 
   // Protected routes require authentication
