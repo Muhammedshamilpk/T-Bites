@@ -2,59 +2,52 @@ import { createClient, type SanityClient } from "@sanity/client";
 import { createImageUrlBuilder } from "@sanity/image-url";
 
 export const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || "r1clvwwn";
-export const defaultDataset = process.env.NEXT_PUBLIC_SANITY_DATASET || "production";
+export const defaultDataset = "production";
 export const dataset = defaultDataset;
 export const apiVersion = process.env.NEXT_PUBLIC_SANITY_API_VERSION || "2025-01-01";
 export const readToken = process.env.SANITY_API_READ_TOKEN;
 export const writeToken = process.env.SANITY_API_WRITE_TOKEN || process.env.SANITY_API_TOKEN;
 
-const clientCache = new Map<string, SanityClient>();
+const activeToken = (writeToken && writeToken.trim().length > 0)
+  ? writeToken.trim()
+  : ((readToken && readToken.trim().length > 0) ? readToken.trim() : undefined);
 
-/**
- * Reusable Sanity Client Factory that returns a client for the given dataset.
- * Supports multi-tenant dynamic dataset targeting (e.g. production, restaurant_a, restaurant_b).
- * Uses public client by default for read queries, and authenticated client for write operations.
- */
-export function getSanityClientForDataset(targetDataset?: string, useAuthToken = false): SanityClient {
-  const target = (targetDataset && targetDataset.trim().length > 0) ? targetDataset.trim() : defaultDataset;
-  const cacheKey = `${target}_${useAuthToken ? "auth" : "public"}`;
+/** Unauthenticated Sanity Client for public GROQ queries */
+export const publicSanityClient: SanityClient = createClient({
+  projectId,
+  dataset: defaultDataset,
+  apiVersion,
+  useCdn: false,
+  perspective: "published",
+});
 
-  if (clientCache.has(cacheKey)) {
-    return clientCache.get(cacheKey)!;
-  }
+/** Authenticated Sanity Client for mutations and server actions */
+export const sanityClient: SanityClient = createClient({
+  projectId,
+  dataset: defaultDataset,
+  apiVersion,
+  useCdn: false,
+  ...(activeToken ? { token: activeToken } : {}),
+  perspective: "published",
+});
 
-  const activeToken = (writeToken && writeToken.trim().length > 0)
-    ? writeToken.trim()
-    : ((readToken && readToken.trim().length > 0) ? readToken.trim() : undefined);
-
-  const client = createClient({
-    projectId,
-    dataset: target,
-    apiVersion,
-    useCdn: false,
-    ...(useAuthToken && activeToken ? { token: activeToken } : {}),
-    perspective: "published",
-  });
-
-  clientCache.set(cacheKey, client);
-  return client;
+/** Backward-compatible helper that returns the single production dataset client */
+export function getSanityClientForDataset(_targetDataset?: string, useAuthToken = true): SanityClient {
+  return useAuthToken ? sanityClient : publicSanityClient;
 }
 
-/** Default global client (targets production dataset with auth for server operations) */
-export const sanityClient = getSanityClientForDataset(defaultDataset, true);
+/** Image URL builder for production dataset */
+const imageBuilder = createImageUrlBuilder({
+  projectId,
+  dataset: defaultDataset,
+});
 
-/** Dynamic image URL builder for a specific dataset */
-export function urlFor(source: any, targetDataset?: string) {
+export function urlFor(source: any, _targetDataset?: string) {
   if (!source) return "";
-  const target = targetDataset || defaultDataset;
-  const builder = createImageUrlBuilder({
-    projectId,
-    dataset: target,
-  });
-  return builder.image(source).url();
+  return imageBuilder.image(source).url();
 }
 
-/** Helper GROQ query executor with graceful fallback and dynamic dataset targeting */
+/** Single-dataset GROQ query executor with graceful fallback */
 export async function sanityFetch<T>({
   query,
   params = {},
@@ -67,15 +60,11 @@ export async function sanityFetch<T>({
   datasetName?: string;
 }): Promise<T> {
   try {
-    // Try public query first for maximum reliability across hosts
-    const publicClient = getSanityClientForDataset(datasetName, false);
-    const data = await publicClient.fetch<T>(query, params);
+    const data = await publicSanityClient.fetch<T>(query, params);
     return data ?? fallback;
   } catch (error) {
-    // Try auth client if public query is restricted
     try {
-      const authClient = getSanityClientForDataset(datasetName, true);
-      const authData = await authClient.fetch<T>(query, params);
+      const authData = await sanityClient.fetch<T>(query, params);
       return authData ?? fallback;
     } catch (authError) {
       console.warn(`Sanity fetch notice [dataset: ${datasetName || defaultDataset}]:`, authError);

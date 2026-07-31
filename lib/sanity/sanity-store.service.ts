@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { sanityFetch, getSanityClientForDataset, urlFor } from "./client";
-import { getEffectiveDatasetFromCookies } from "./datasetResolver";
+import { sanityFetch, sanityClient, urlFor } from "./client";
+import { getEffectiveRestaurantIdFromCookies } from "./storeResolver";
 
 export interface SanityRestaurantDetails {
   _id: string;
@@ -17,7 +17,6 @@ export interface SanityRestaurantDetails {
   operatingHours?: string;
   notificationsEnabled?: boolean;
   acceptDelivery?: boolean;
-  datasetName?: string;
 }
 
 export interface SanityMenuItem {
@@ -33,6 +32,7 @@ export interface SanityMenuItem {
   category?: string;
   preparationTime?: string;
   isPopular?: boolean;
+  restaurantId?: string;
 }
 
 export interface SanityOrder {
@@ -49,6 +49,7 @@ export interface SanityOrder {
   placedAt?: string;
   paymentMethod?: string;
   paymentStatus?: string;
+  restaurantId?: string;
   items?: Array<{
     food_item_id: string;
     food_name: string;
@@ -74,13 +75,12 @@ export interface SanityDashboardSettings {
   taxPercentage?: number;
 }
 
-/** Fetch All Published & Active Restaurants from Sanity CMS production dataset for Customer Application */
+/** Fetch All Published & Active Restaurants from Sanity CMS production dataset for Customer App */
 export async function getAllSanityRestaurants(): Promise<any[]> {
   const query = `*[_type == "restaurant" && (status == "active" || status == "open" || status == "Open" || !defined(status))] | order(name asc) {
     _id,
     "id": _id,
     name,
-    datasetName,
     "slug": slug.current,
     ownerName,
     ownerEmail,
@@ -108,57 +108,57 @@ export async function getAllSanityRestaurants(): Promise<any[]> {
   const restaurants = await sanityFetch<any[]>({
     query,
     fallback: [],
-    datasetName: "production",
   });
-
-  const { projectId } = await import("./client");
-  console.log(`[CUSTOMER QUERY LOG] ProjectId: ${projectId} | Dataset: production | Sanity Restaurants Returned: ${restaurants.length}`);
-  console.log(`[CUSTOMER QUERY LOG] Restaurant IDs:`, restaurants.map((r: any) => ({ id: r.id, name: r.name, datasetName: r.datasetName || "production", status: r.status })));
 
   return restaurants;
 }
 
 /** 1. Fetch Restaurant Details from Sanity CMS */
-export async function getSanityRestaurantDetails(targetDataset?: string): Promise<SanityRestaurantDetails | null> {
-  const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
-  const query = `*[_type == "restaurant"][0] {
-    _id,
-    name,
-    ownerName,
-    email,
-    phone,
-    address,
-    description,
-    storeStatus,
-    deliveryRadius,
-    operatingHours,
-    notificationsEnabled,
-    acceptDelivery,
-    datasetName
-  }`;
+export async function getSanityRestaurantDetails(targetRestaurantId?: string): Promise<SanityRestaurantDetails | null> {
+  const restaurantId = targetRestaurantId || await getEffectiveRestaurantIdFromCookies();
+  let query = `*[_type == "restaurant"][0]`;
+  const params: Record<string, any> = {};
 
-  return await sanityFetch<SanityRestaurantDetails | null>({
-    query,
+  if (restaurantId) {
+    query = `*[_type == "restaurant" && (_id == $restaurantId || slug.current == $restaurantId)][0]`;
+    params.restaurantId = restaurantId;
+  }
+
+  const res = await sanityFetch<any>({
+    query: `${query} {
+      _id,
+      name,
+      ownerName,
+      email,
+      phone,
+      address,
+      description,
+      storeStatus,
+      deliveryRadius,
+      operatingHours,
+      notificationsEnabled,
+      acceptDelivery
+    }`,
+    params,
     fallback: null,
-    datasetName: activeDataset,
   });
+
+  return res;
 }
 
 /** Update Restaurant Profile in Sanity CMS */
-export async function updateSanityRestaurantProfileAction(data: Partial<SanityRestaurantDetails>, targetDataset?: string) {
+export async function updateSanityRestaurantProfileAction(data: Partial<SanityRestaurantDetails>, targetRestaurantId?: string) {
   try {
-    const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
-    const client = getSanityClientForDataset(activeDataset);
-    const restaurant = await getSanityRestaurantDetails(activeDataset);
+    const restaurantId = targetRestaurantId || await getEffectiveRestaurantIdFromCookies();
+    const restaurant = await getSanityRestaurantDetails(restaurantId || undefined);
 
     if (restaurant?._id) {
-      await client.patch(restaurant._id).set(data).commit();
+      await sanityClient.patch(restaurant._id).set(data).commit();
     } else {
-      await client.create({
+      await sanityClient.create({
         _type: "restaurant",
         name: data.name || "T-Bites Restaurant",
         storeStatus: "Open",
-        datasetName: activeDataset,
         ...data,
       });
     }
@@ -171,29 +171,37 @@ export async function updateSanityRestaurantProfileAction(data: Partial<SanityRe
   }
 }
 
-/** 2. Fetch Menu Items from Sanity CMS (Includes Studio Drafts) */
-export async function getSanityMenuItems(targetDataset?: string): Promise<SanityMenuItem[]> {
-  const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
-  const query = `*[_type == "menuItem"] | order(_createdAt desc) {
-    _id,
-    name,
-    price,
-    description,
-    isVeg,
-    isAvailable,
-    "imageUrl": image.asset->url,
-    "categoryTitle": category->name,
-    preparationTime,
-    isPopular
-  }`;
+/** 2. Fetch Menu Items from Sanity CMS production dataset referencing specific restaurant */
+export async function getSanityMenuItems(targetRestaurantId?: string): Promise<SanityMenuItem[]> {
+  const restaurantId = targetRestaurantId || await getEffectiveRestaurantIdFromCookies();
+  
+  let query = `*[_type == "menuItem"] | order(_createdAt desc)`;
+  const params: Record<string, any> = {};
+
+  if (restaurantId) {
+    query = `*[_type == "menuItem" && (restaurant._ref == $restaurantId || !defined(restaurant))] | order(_createdAt desc)`;
+    params.restaurantId = restaurantId;
+  }
 
   const items = await sanityFetch<SanityMenuItem[]>({
-    query,
+    query: `${query} {
+      _id,
+      name,
+      price,
+      description,
+      isVeg,
+      isAvailable,
+      "imageUrl": image.asset->url,
+      "categoryTitle": category->name,
+      preparationTime,
+      isPopular,
+      "restaurantId": restaurant._ref
+    }`,
+    params,
     fallback: [],
-    datasetName: activeDataset,
   });
 
-  // Deduplicate items if both draft and published version exist
+  // Deduplicate draft and published versions
   const map = new Map<string, SanityMenuItem>();
   for (const item of items) {
     const cleanId = item._id.replace("drafts.", "");
@@ -206,11 +214,10 @@ export async function getSanityMenuItems(targetDataset?: string): Promise<Sanity
   return Array.from(map.values());
 }
 
-/** Add Menu Item to Sanity CMS with direct image asset upload */
-export async function addSanityMenuItemAction(formData: FormData, targetDataset?: string) {
+/** Add Menu Item to Sanity CMS production dataset referencing restaurant */
+export async function addSanityMenuItemAction(formData: FormData, targetRestaurantId?: string) {
   try {
-    const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
-    const client = getSanityClientForDataset(activeDataset);
+    const restaurantId = targetRestaurantId || await getEffectiveRestaurantIdFromCookies();
 
     const name = (formData.get("name") as string || "").trim();
     const price = parseFloat(formData.get("price") as string) || 0;
@@ -224,7 +231,7 @@ export async function addSanityMenuItemAction(formData: FormData, targetDataset?
 
     let imageAssetRef: any = null;
     if (imageFile && imageFile.size > 0) {
-      const asset = await client.assets.upload("image", imageFile, {
+      const asset = await sanityClient.assets.upload("image", imageFile, {
         filename: imageFile.name,
       });
       imageAssetRef = {
@@ -245,14 +252,15 @@ export async function addSanityMenuItemAction(formData: FormData, targetDataset?
       isAvailable: true,
       isPopular: false,
       preparationTime: "15 mins",
+      ...(restaurantId ? { restaurant: { _type: "reference", _ref: restaurantId } } : {}),
     };
 
     if (imageAssetRef) {
       docData.image = imageAssetRef;
     }
 
-    const created = await client.create(docData);
-    const imageUrl = imageAssetRef ? urlFor(imageAssetRef, activeDataset) : "";
+    const created = await sanityClient.create(docData);
+    const imageUrl = imageAssetRef ? urlFor(imageAssetRef) : "";
 
     revalidatePath("/dashboard/menu");
     revalidatePath("/");
@@ -266,11 +274,8 @@ export async function addSanityMenuItemAction(formData: FormData, targetDataset?
 }
 
 /** Update Menu Item in Sanity CMS */
-export async function updateSanityMenuItemAction(id: string, formData: FormData, targetDataset?: string) {
+export async function updateSanityMenuItemAction(id: string, formData: FormData) {
   try {
-    const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
-    const client = getSanityClientForDataset(activeDataset);
-
     const name = (formData.get("name") as string || "").trim();
     const price = parseFloat(formData.get("price") as string) || 0;
     const description = (formData.get("description") as string || "").trim();
@@ -285,7 +290,7 @@ export async function updateSanityMenuItemAction(id: string, formData: FormData,
     };
 
     if (imageFile && imageFile.size > 0) {
-      const asset = await client.assets.upload("image", imageFile, {
+      const asset = await sanityClient.assets.upload("image", imageFile, {
         filename: imageFile.name,
       });
       patchData.image = {
@@ -298,7 +303,7 @@ export async function updateSanityMenuItemAction(id: string, formData: FormData,
     }
 
     if (!id.startsWith("demo-") && !id.startsWith("sanity-item-")) {
-      await client.patch(id).set(patchData).commit();
+      await sanityClient.patch(id).set(patchData).commit();
     } else {
       const docData: any = {
         _type: "menuItem",
@@ -311,7 +316,7 @@ export async function updateSanityMenuItemAction(id: string, formData: FormData,
         preparationTime: "15 mins",
       };
       if (patchData.image) docData.image = patchData.image;
-      await client.create(docData);
+      await sanityClient.create(docData);
     }
 
     revalidatePath("/dashboard/menu");
@@ -325,14 +330,12 @@ export async function updateSanityMenuItemAction(id: string, formData: FormData,
 }
 
 /** Toggle Menu Item Availability in Sanity CMS */
-export async function toggleSanityMenuItemAction(id: string, isAvailable: boolean, targetDataset?: string) {
+export async function toggleSanityMenuItemAction(id: string, isAvailable: boolean) {
   try {
-    const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
-    const client = getSanityClientForDataset(activeDataset);
     const cleanId = id.replace("drafts.", "");
     await Promise.allSettled([
-      client.patch(cleanId).set({ isAvailable }).commit(),
-      client.patch(`drafts.${cleanId}`).set({ isAvailable }).commit(),
+      sanityClient.patch(cleanId).set({ isAvailable }).commit(),
+      sanityClient.patch(`drafts.${cleanId}`).set({ isAvailable }).commit(),
     ]);
     revalidatePath("/dashboard/menu");
     return { success: true };
@@ -343,14 +346,12 @@ export async function toggleSanityMenuItemAction(id: string, isAvailable: boolea
 }
 
 /** Delete Menu Item from Sanity CMS */
-export async function deleteSanityMenuItemAction(id: string, targetDataset?: string) {
+export async function deleteSanityMenuItemAction(id: string) {
   try {
-    const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
-    const client = getSanityClientForDataset(activeDataset);
     const cleanId = id.replace("drafts.", "");
     await Promise.allSettled([
-      client.delete(cleanId),
-      client.delete(`drafts.${cleanId}`),
+      sanityClient.delete(cleanId),
+      sanityClient.delete(`drafts.${cleanId}`),
     ]);
     revalidatePath("/dashboard/menu");
     return { success: true };
@@ -360,43 +361,50 @@ export async function deleteSanityMenuItemAction(id: string, targetDataset?: str
   }
 }
 
-/** 3. Fetch Kitchen Orders from Sanity CMS */
-export async function getSanityOrders(targetDataset?: string): Promise<SanityOrder[]> {
-  const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
-  const query = `*[_type == "order"] | order(orderTime desc) {
-    _id,
-    "orderId": orderId,
-    customerName,
-    customerPhone,
-    deliveryAddress,
-    "status": orderStatus,
-    "subtotal": totalAmount,
-    "total": totalAmount,
-    "placedAt": orderTime,
-    paymentMethod,
-    paymentStatus,
-    "items": orderedItems[] {
-      "food_item_id": menuItemRef->_id,
-      "food_name": foodName,
-      "price": unitPrice,
-      quantity
-    }
-  }`;
+/** 3. Fetch Kitchen Orders from Sanity CMS production dataset referencing restaurant */
+export async function getSanityOrders(targetRestaurantId?: string): Promise<SanityOrder[]> {
+  const restaurantId = targetRestaurantId || await getEffectiveRestaurantIdFromCookies();
+
+  let query = `*[_type == "order"] | order(orderTime desc)`;
+  const params: Record<string, any> = {};
+
+  if (restaurantId) {
+    query = `*[_type == "order" && (restaurant._ref == $restaurantId || !defined(restaurant))] | order(orderTime desc)`;
+    params.restaurantId = restaurantId;
+  }
 
   return await sanityFetch<SanityOrder[]>({
-    query,
+    query: `${query} {
+      _id,
+      "orderId": orderId,
+      customerName,
+      customerPhone,
+      deliveryAddress,
+      "status": orderStatus,
+      "subtotal": totalAmount,
+      "total": totalAmount,
+      "placedAt": orderTime,
+      paymentMethod,
+      paymentStatus,
+      "restaurantId": restaurant._ref,
+      "items": orderedItems[] {
+        "food_item_id": menuItemRef->_id,
+        "food_name": foodName,
+        "price": unitPrice,
+        quantity
+      }
+    }`,
+    params,
     fallback: [],
-    datasetName: activeDataset,
   });
 }
 
-/** Create Order in Sanity CMS */
-export async function createSanityOrderAction(orderData: any, targetDataset?: string) {
+/** Create Order in Sanity CMS referencing restaurant */
+export async function createSanityOrderAction(orderData: any, targetRestaurantId?: string) {
   try {
-    const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
-    const client = getSanityClientForDataset(activeDataset);
+    const restaurantId = targetRestaurantId || orderData.restaurantId || await getEffectiveRestaurantIdFromCookies();
 
-    const created = await client.create({
+    const created = await sanityClient.create({
       _type: "order",
       orderId: orderData.orderId || `ORD-${Date.now().toString().slice(-4)}`,
       customerName: orderData.customerName || "Customer",
@@ -407,6 +415,7 @@ export async function createSanityOrderAction(orderData: any, targetDataset?: st
       paymentStatus: "Paid",
       orderStatus: "Preparing",
       orderTime: new Date().toISOString(),
+      ...(restaurantId ? { restaurant: { _type: "reference", _ref: restaurantId } } : {}),
       orderedItems: (orderData.items || []).map((i: any) => ({
         foodName: i.food_name || i.name || "Food Item",
         quantity: i.quantity || 1,
@@ -423,15 +432,12 @@ export async function createSanityOrderAction(orderData: any, targetDataset?: st
 }
 
 /** Update Order Status in Sanity CMS */
-export async function updateSanityOrderStatusAction(id: string, status: string, targetDataset?: string) {
+export async function updateSanityOrderStatusAction(id: string, status: string) {
   try {
-    const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
-    const client = getSanityClientForDataset(activeDataset);
-
     if (id.startsWith("ORD-")) {
       return { success: true };
     }
-    await client.patch(id).set({ orderStatus: status }).commit();
+    await sanityClient.patch(id).set({ orderStatus: status }).commit();
     revalidatePath("/dashboard/orders");
     return { success: true };
   } catch (error: any) {
@@ -440,18 +446,25 @@ export async function updateSanityOrderStatusAction(id: string, status: string, 
   }
 }
 
-/** 4. Fetch Categories from Sanity CMS */
-export async function getSanityCategories(targetDataset?: string): Promise<SanityCategory[]> {
-  const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
-  const query = `*[_type == "category"] | order(displayOrder asc) {
-    _id,
-    name,
-    displayOrder,
-    "imageUrl": image.asset->url
-  }`;
+/** 4. Fetch Categories from Sanity CMS production dataset */
+export async function getSanityCategories(targetRestaurantId?: string): Promise<SanityCategory[]> {
+  const restaurantId = targetRestaurantId || await getEffectiveRestaurantIdFromCookies();
+  let query = `*[_type == "category"] | order(displayOrder asc)`;
+  const params: Record<string, any> = {};
+
+  if (restaurantId) {
+    query = `*[_type == "category" && (!defined(restaurant) || restaurant._ref == $restaurantId)] | order(displayOrder asc)`;
+    params.restaurantId = restaurantId;
+  }
 
   return await sanityFetch<SanityCategory[]>({
-    query,
+    query: `${query} {
+      _id,
+      name,
+      displayOrder,
+      "imageUrl": image.asset->url
+    }`,
+    params,
     fallback: [
       { _id: "cat-1", name: "Starters", displayOrder: 1 },
       { _id: "cat-2", name: "Main Course", displayOrder: 2 },
@@ -459,25 +472,31 @@ export async function getSanityCategories(targetDataset?: string): Promise<Sanit
       { _id: "cat-4", name: "Beverages", displayOrder: 4 },
       { _id: "cat-5", name: "Chef's Specials", displayOrder: 5 },
     ],
-    datasetName: activeDataset,
   });
 }
 
-/** 5. Fetch Dashboard Settings from Sanity CMS */
-export async function getSanityDashboardSettings(targetDataset?: string): Promise<SanityDashboardSettings> {
-  const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
-  const query = `*[_type == "dashboardSettings"][0] {
-    _id,
-    notificationSound,
-    notificationEnabled,
-    onlineStatus,
-    theme,
-    currency,
-    taxPercentage
-  }`;
+/** 5. Fetch Dashboard Settings from Sanity CMS production dataset */
+export async function getSanityDashboardSettings(targetRestaurantId?: string): Promise<SanityDashboardSettings> {
+  const restaurantId = targetRestaurantId || await getEffectiveRestaurantIdFromCookies();
+  let query = `*[_type == "dashboardSettings"][0]`;
+  const params: Record<string, any> = {};
+
+  if (restaurantId) {
+    query = `*[_type == "dashboardSettings" && (!defined(restaurant) || restaurant._ref == $restaurantId)][0]`;
+    params.restaurantId = restaurantId;
+  }
 
   return await sanityFetch<SanityDashboardSettings>({
-    query,
+    query: `${query} {
+      _id,
+      notificationSound,
+      notificationEnabled,
+      onlineStatus,
+      theme,
+      currency,
+      taxPercentage
+    }`,
+    params,
     fallback: {
       notificationSound: "Chime",
       notificationEnabled: true,
@@ -486,6 +505,5 @@ export async function getSanityDashboardSettings(targetDataset?: string): Promis
       currency: "INR (₹)",
       taxPercentage: 8.5,
     },
-    datasetName: activeDataset,
   });
 }

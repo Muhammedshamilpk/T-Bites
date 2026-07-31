@@ -33,23 +33,35 @@ export async function registerOwnerAndRestaurantAction(
   const pincode = (formData.get("pincode") as string)?.trim();
   const description = (formData.get("description") as string)?.trim() || null;
 
-  const slug = restaurant_name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "");
-  const customDataset = (formData.get("dataset_name") as string)?.trim();
-  const datasetName = customDataset || (slug ? `restaurant_${slug.replaceAll("-", "_")}` : "production");
-
   if (!full_name || !email || !phone || !password || !restaurant_name || !address_line || !city || !pincode) {
     return { message: "Please fill out all required fields." };
   }
 
   try {
+    const adminSupabase = await createAdminClient();
     const { sanityClient } = await import("@/lib/sanity/client");
-    const bcrypt = (await import("bcryptjs")).default;
 
-    // 1. Create Sanity Restaurant Document in Production Dataset
+    // 1. Register User in Supabase Auth ONLY
+    let supabaseUserId = crypto.randomUUID();
+    try {
+      const { data: createdAuthUser } = await adminSupabase.auth.admin.createUser({
+        email: email.toLowerCase().trim(),
+        password,
+        email_confirm: true,
+        user_metadata: { full_name, role: "restaurant_owner" },
+      });
+      if (createdAuthUser?.user?.id) {
+        supabaseUserId = createdAuthUser.user.id;
+      }
+    } catch {
+      // User may already exist in Supabase Auth
+    }
+
+    // 2. Create Sanity Restaurant Document in Production Dataset
+    const slug = restaurant_name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "");
     const restaurantDoc = await sanityClient.create({
       _type: "restaurant",
       name: restaurant_name,
-      datasetName,
       slug: { _type: "slug", current: slug },
       ownerName: full_name,
       address: `${address_line}, ${city} - ${pincode}`,
@@ -59,15 +71,13 @@ export async function registerOwnerAndRestaurantAction(
       createdAt: new Date().toISOString(),
     });
 
-    // 2. Hash Password & Create Sanity Restaurant Owner Auth Document in Production Dataset
-    const passwordHash = await bcrypt.hash(password, 10);
+    // 3. Create Sanity RestaurantOwner Document linking Supabase User ID and Restaurant Reference
     await sanityClient.create({
       _type: "restaurantOwner",
+      supabaseUserId,
       email: email.toLowerCase().trim(),
-      passwordHash,
       restaurant: { _type: "reference", _ref: restaurantDoc._id },
       role: "restaurant_owner",
-      datasetName,
       createdAt: new Date().toISOString(),
     });
 

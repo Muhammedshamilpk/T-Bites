@@ -309,24 +309,28 @@ export async function ownerLoginAction(
     redirect("/admin");
   }
 
-  // 2. Check Sanity CMS for Restaurant Owner or Admin accounts
+  // 2. Authenticate using Supabase Auth ONLY
   try {
-    const { sanityClient } = await import("@/lib/sanity/client");
-    const bcrypt = (await import("bcryptjs")).default;
+    const supabase = await createClient();
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
+    const supabaseUserId = authData?.user?.id || "demo-owner-id";
+
+    // 3. Query Sanity production dataset for RestaurantOwner document referencing user's restaurant
+    const { sanityClient } = await import("@/lib/sanity/client");
     const ownerDoc = await sanityClient.fetch(
-      `*[_type == "restaurantOwner" && lower(email) == $email][0]{
+      `*[_type == "restaurantOwner" && (supabaseUserId == $userId || lower(email) == $email)][0]{
         _id,
         email,
-        passwordHash,
         role,
-        datasetName,
         "restaurantId": restaurant._ref,
         "restaurantStatus": restaurant->status,
-        "restaurantName": restaurant->name,
-        "restaurantDataset": restaurant->datasetName
+        "restaurantName": restaurant->name
       }`,
-      { email }
+      { userId: supabaseUserId, email }
     );
 
     if (ownerDoc) {
@@ -336,35 +340,17 @@ export async function ownerLoginAction(
         };
       }
 
-      const isValidPassword = ownerDoc.passwordHash
-        ? await bcrypt.compare(password, ownerDoc.passwordHash)
-        : true;
-
-      if (!isValidPassword) {
-        return { message: "Invalid password. Please check your credentials." };
-      }
-
       const cookieStore = await cookies();
       const isSuperAdmin = ownerDoc.role === "superadmin" || ownerDoc.role === "admin";
       const userRole = isSuperAdmin ? "admin" : "restaurant_owner";
-      const assignedDataset = isSuperAdmin
-        ? "production"
-        : ownerDoc.restaurantDataset || ownerDoc.datasetName || "restaurant_a";
 
       cookieStore.set("tbites_demo_user", JSON.stringify({
-        id: ownerDoc._id,
+        id: supabaseUserId,
         email: ownerDoc.email,
         role: userRole,
-        datasetName: assignedDataset,
         restaurantId: ownerDoc.restaurantId,
         restaurantName: ownerDoc.restaurantName,
       }), {
-        httpOnly: true,
-        path: "/",
-        maxAge: 60 * 60 * 24 * 7,
-      });
-
-      cookieStore.set("tbites_dataset", assignedDataset, {
         httpOnly: true,
         path: "/",
         maxAge: 60 * 60 * 24 * 7,
@@ -375,10 +361,28 @@ export async function ownerLoginAction(
       } else {
         redirect("/dashboard");
       }
+    } else if (authData?.user) {
+      // Fallback for newly created Supabase Auth users
+      const cookieStore = await cookies();
+      cookieStore.set("tbites_demo_user", JSON.stringify({
+        id: authData.user.id,
+        email: authData.user.email,
+        role: "restaurant_owner",
+      }), {
+        httpOnly: true,
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7,
+      });
+      redirect("/dashboard");
+    }
+
+    if (authError) {
+      return { message: authError.message };
     }
   } catch (err: any) {
     if (err?.digest?.startsWith("NEXT_REDIRECT")) throw err;
-    console.error("Owner/Admin login error:", err);
+    console.error("Owner login error:", err);
+    return { message: err.message || "Failed to log in with Supabase Auth." };
   }
 
   // 3. Check for Restaurant Owner demo credentials

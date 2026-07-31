@@ -23,5 +23,11 @@ export const categorySchema = defineType({
       type: "number",
       initialValue: 0,
     }),
+    defineField({
+      name: "restaurant",
+      title: "Restaurant Reference",
+      type: "reference",
+      to: [{ type: "restaurant" }],
+    }),
   ],
 });
