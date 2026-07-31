@@ -3,116 +3,97 @@
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import {
-  Search,
+  Search as SearchIcon,
   MapPin,
   Star,
   Clock,
-  Timer,
-  SlidersHorizontal,
   RotateCcw,
-  CheckCircle2,
+  Loader2,
+  SlidersHorizontal,
 } from "lucide-react";
 import { LocationModal } from "@/components/customer/location-modal";
-import { useLocationStore } from "@/store/location-store";
 import { createClient } from "@/lib/supabase/client";
 
 const FILTER_CHIPS = [
-  { id: "nearby", label: "Nearby" },
-  { id: "fast", label: "Fast Delivery" },
-  { id: "top_rated", label: "Top Rated" },
-  { id: "veg", label: "Pure Veg" },
-  { id: "offers", label: "Offers" },
+  { id: "all", label: "All Stores" },
   { id: "open", label: "Open Now" },
+  { id: "top_rated", label: "Top Rated" },
+  { id: "fast", label: "Fast Delivery" },
 ];
 
-const SEARCH_RESULTS = [
-  {
-    id: "l-artisan",
-    name: "L'Artisan Bistro",
-    cuisine: "French • European • 25-35 min",
-    rating: "4.8",
-    status: "Accepting Orders",
-    badge: "Free Delivery",
-    badgeBg: "bg-[#994700] text-white",
-    image:
-      "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80",
-    tags: ["nearby", "fast", "top_rated", "open"],
-  },
-  {
-    id: "umami-house",
-    name: "Umami House",
-    cuisine: "Japanese • Sushi • 20-30 min",
-    rating: "4.9",
-    status: "Popular Near You",
-    badge: "Top Pick",
-    badgeBg: "bg-[#ff7a00] text-white",
-    image:
-      "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?auto=format&fit=crop&w=800&q=80",
-    tags: ["nearby", "top_rated", "open"],
-  },
-  {
-    id: "terra-nova",
-    name: "Terra Nova Pizza",
-    cuisine: "Italian • Wood Fired • 15-25 min",
-    rating: "4.7",
-    status: "Fastest in your area",
-    badge: "30% OFF",
-    badgeBg: "bg-black/60 text-white backdrop-blur-md",
-    image:
-      "https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=800&q=80",
-    tags: ["fast", "offers", "open"],
-  },
-];
+export interface RealRestaurantSearchItem {
+  id: string;
+  name: string;
+  description: string | null;
+  address_line: string;
+  city: string;
+  phone: string;
+  logo_url: string | null;
+  banner_url: string | null;
+  status: "open" | "closed" | "holiday";
+  approval_status: string;
+}
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState("nearby");
-  const [userName, setUserName] = useState("shamu");
-  const { location, openModal } = useLocationStore();
+  const [activeFilter, setActiveFilter] = useState("all");
+  const [restaurants, setRestaurants] = useState<RealRestaurantSearchItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadUser() {
+    async function fetchRealRestaurants() {
       try {
         const supabase = createClient();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (user?.user_metadata?.full_name) {
-          setUserName(user.user_metadata.full_name);
-        }
-      } catch {
-        // Fallback
+        const { data } = await supabase
+          .from("restaurants")
+          .select("*, food_items(food_images(storage_path))")
+          .eq("approval_status", "approved")
+          .order("name");
+
+        const formatted = (data || []).map((r: any) => {
+          let firstFoodImage: string | null = null;
+          if (r.food_items && r.food_items.length > 0) {
+            for (const item of r.food_items) {
+              if (item.food_images && item.food_images.length > 0) {
+                firstFoodImage = item.food_images[0]?.storage_path || null;
+                if (firstFoodImage) break;
+              }
+            }
+          }
+          return {
+            ...r,
+            banner_url:
+              r.banner_url ||
+              r.logo_url ||
+              firstFoodImage ||
+              "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80",
+          };
+        });
+        setRestaurants(formatted);
+      } catch (err) {
+        console.error("Failed to load real restaurants:", err);
+      } finally {
+        setLoading(false);
       }
     }
-    loadUser();
+
+    fetchRealRestaurants();
   }, []);
 
-  const hour = new Date().getHours();
-  const timePrefix =
-    hour >= 5 && hour < 12
-      ? "Good morning"
-      : hour >= 12 && hour < 17
-      ? "Good afternoon"
-      : "Good evening";
-
-  const greeting = `${timePrefix}, ${userName}`;
-
   const filteredResults = useMemo(() => {
-    return SEARCH_RESULTS.filter((r) => {
+    return restaurants.filter((r) => {
       if (query.trim()) {
         const q = query.toLowerCase();
         const matchesName = r.name.toLowerCase().includes(q);
-        const matchesCuisine = r.cuisine.toLowerCase().includes(q);
-        if (!matchesName && !matchesCuisine) return false;
+        const matchesCity = r.city ? r.city.toLowerCase().includes(q) : false;
+        const matchesDesc = r.description ? r.description.toLowerCase().includes(q) : false;
+        if (!matchesName && !matchesCity && !matchesDesc) return false;
       }
 
-      if (activeFilter === "fast") return r.tags.includes("fast");
-      if (activeFilter === "top_rated") return parseFloat(r.rating) >= 4.8;
-      if (activeFilter === "offers") return r.tags.includes("offers");
-      if (activeFilter === "open") return r.tags.includes("open");
+      if (activeFilter === "open") return r.status === "open";
       return true;
     });
-  }, [query, activeFilter]);
+  }, [query, activeFilter, restaurants]);
 
   return (
     <div className="min-h-screen bg-[#fff8f5] text-[#251912] selection:bg-[#ffdbc8] selection:text-[#321200] pb-32">
@@ -124,12 +105,12 @@ export default function SearchPage() {
         {/* Search Input Section */}
         <section className="animate-in fade-in slide-in-from-bottom-4 duration-700">
           <div className="relative max-w-2xl mx-auto md:mx-0">
-            <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-[#584235]" />
+            <SearchIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-[#584235]" />
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Cravings? Search for dishes, cuisines, or restaurants..."
+              placeholder="Search for restaurants, dishes, or cities..."
               className="w-full pl-14 pr-6 py-5 bg-white border-none rounded-[20px] shadow-xs focus:ring-2 focus:ring-[#994700] transition-all text-sm font-semibold placeholder:text-[#584235]/50"
               autoFocus
             />
@@ -158,84 +139,111 @@ export default function SearchPage() {
           </div>
         </section>
 
-        {/* Dynamic Results Section */}
-        {filteredResults.length > 0 ? (
+        {/* Loading State */}
+        {loading ? (
+          <div className="flex items-center justify-center py-20 text-[#994700]">
+            <Loader2 className="w-8 h-8 animate-spin" />
+          </div>
+        ) : filteredResults.length > 0 ? (
           <section className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-black text-[#251912]">Curated for you</h2>
+              <h2 className="text-2xl font-black text-[#251912]">
+                Active Restaurants ({filteredResults.length})
+              </h2>
               <button
                 onClick={() => {
                   setQuery("");
-                  setActiveFilter("nearby");
+                  setActiveFilter("all");
                 }}
                 className="text-[#994700] text-xs font-extrabold hover:underline"
               >
-                Clear Filters
+                Clear Search
               </button>
             </div>
 
-            {/* Bento / Grid Layout */}
+            {/* Grid Layout */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {filteredResults.map((r) => (
-                <Link key={r.id} href="/restaurants" className="group cursor-pointer">
-                  <div className="relative rounded-[24px] overflow-hidden aspect-[4/3] ambient-glow mb-4 shadow-sm">
-                    <img
-                      src={r.image}
-                      alt={r.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                    />
+              {filteredResults.map((r) => {
+                const isOpened = r.status === "open";
+                return (
+                  <Link key={r.id} href={`/restaurants/${r.id}`} className="group cursor-pointer">
+                    <div className="relative rounded-[24px] overflow-hidden aspect-[4/3] ambient-glow mb-4 shadow-sm bg-neutral-100">
+                      <img
+                        src={r.banner_url || "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80"}
+                        alt={r.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                      />
 
-                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full flex items-center gap-1">
-                      <Star className="w-4 h-4 fill-[#ff7a00] text-[#ff7a00]" />
-                      <span className="text-xs font-black text-[#251912]">{r.rating}</span>
-                    </div>
+                      <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full flex items-center gap-1">
+                        <Star className="w-4 h-4 fill-[#ff7a00] text-[#ff7a00]" />
+                        <span className="text-xs font-black text-[#251912]">4.8</span>
+                      </div>
 
-                    {r.badge && (
-                      <div className={`absolute bottom-4 left-4 px-3 py-1 rounded-full ${r.badgeBg}`}>
+                      <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[#994700]">
                         <span className="text-[10px] font-black uppercase tracking-wider">
-                          {r.badge}
+                          VERIFIED
                         </span>
                       </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-1">
-                    <h3 className="text-lg font-black text-[#251912] group-hover:text-[#994700] transition-colors">
-                      {r.name}
-                    </h3>
-                    <p className="text-xs font-semibold text-[#584235]">{r.cuisine}</p>
-
-                    <div className="flex items-center gap-2 pt-1">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      <span className="text-xs font-extrabold text-emerald-700">{r.status}</span>
                     </div>
-                  </div>
-                </Link>
-              ))}
+
+                    <div className="space-y-1">
+                      <h3 className="text-lg font-black text-[#251912] group-hover:text-[#994700] transition-colors">
+                        {r.name}
+                      </h3>
+                      <p className="text-xs font-semibold text-[#584235] line-clamp-1">
+                        {r.description || "Multi-Cuisine • Fast Food • Biriyani"}
+                      </p>
+
+                      <div className="flex items-center gap-3 pt-1 text-xs">
+                        <span className="flex items-center gap-1 font-extrabold text-emerald-700">
+                          <span
+                            className={`w-2 h-2 rounded-full ${
+                              isOpened ? "bg-emerald-500 animate-pulse" : "bg-neutral-400"
+                            }`}
+                          />
+                          {isOpened ? "Open Now" : "Closed"}
+                        </span>
+                        <span className="text-[#5e5e5e] font-semibold flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 text-neutral-400" />
+                          {r.city || "Local Area"}
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           </section>
         ) : (
-          /* Empty State ("Taste Discovery Failed") */
+          /* Empty State */
           <section className="flex flex-col items-center justify-center py-16 text-center max-w-lg mx-auto space-y-4">
-            <div className="w-56 h-56 relative flex items-center justify-center">
+            <div className="w-48 h-48 relative flex items-center justify-center">
               <div className="absolute inset-0 bg-[#ffdbc8]/40 rounded-full blur-3xl animate-pulse" />
-              <div className="text-7xl relative z-10">👨‍🍳</div>
+              <div className="text-6xl relative z-10">🏪</div>
             </div>
 
-            <h3 className="text-2xl font-black text-[#251912]">Taste Discovery Failed</h3>
+            <h3 className="text-2xl font-black text-[#251912]">No Stores Found</h3>
             <p className="text-xs text-[#584235] font-semibold max-w-sm mx-auto leading-relaxed">
-              We couldn&apos;t find any restaurants matching your refined palate. Try adjusting your filters or searching for something else.
+              We couldn&apos;t find any stores matching your search query. Super Admins and Restaurant Owners can add real restaurants from the Partner Portal.
             </p>
 
-            <button
-              onClick={() => {
-                setQuery("");
-                setActiveFilter("nearby");
-              }}
-              className="px-8 py-3.5 bg-[#994700] text-white rounded-full font-black text-xs hover:shadow-lg hover:shadow-[#994700]/20 transition-all active:scale-95 flex items-center gap-2"
-            >
-              <RotateCcw className="w-4 h-4" /> Reset All Filters
-            </button>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => {
+                  setQuery("");
+                  setActiveFilter("all");
+                }}
+                className="px-6 py-3 bg-[#994700] text-white rounded-full font-black text-xs hover:bg-[#753400] transition-all flex items-center gap-2"
+              >
+                <RotateCcw className="w-4 h-4" /> Reset Search
+              </button>
+              <Link
+                href="/restaurants"
+                className="px-6 py-3 border border-[#251912] text-[#251912] rounded-full font-black text-xs hover:bg-[#251912] hover:text-white transition-all"
+              >
+                View All Stores
+              </Link>
+            </div>
           </section>
         )}
       </main>
