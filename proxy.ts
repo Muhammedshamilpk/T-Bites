@@ -39,8 +39,8 @@ export default async function proxy(request: NextRequest) {
     role = profile?.role;
   }
 
-  if (pathname.startsWith("/admin") && pathname !== "/admin/login" && role !== "admin") {
-    return NextResponse.redirect(new URL("/admin/login", request.url));
+  if (pathname.startsWith("/admin") && role !== "admin") {
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
   // Protected routes require authentication

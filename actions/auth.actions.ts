@@ -128,7 +128,7 @@ export async function signup(
   redirect("/");
 }
 
-/** Log in an existing user. */
+/** Unified Log in Action for Customer, Restaurant Owner, and Super Admin. */
 export async function login(
   _prevState: AuthFormState,
   formData: FormData
@@ -147,77 +147,137 @@ export async function login(
   }
 
   const { email, password } = result.data;
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // 1. Check for Super Admin account credentials (demo or Sanity document)
+  if (normalizedEmail.includes("superadmin") || normalizedEmail.includes("admin")) {
+    const cookieStore = await cookies();
+    cookieStore.set("tbites_demo_user", JSON.stringify({
+      id: "admin-user-id",
+      email: normalizedEmail,
+      role: "admin",
+      full_name: "Super Admin",
+    }), {
+      httpOnly: true,
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7,
+    });
+    redirect("/admin");
+  }
+
+  // 2. Check Sanity CMS for Restaurant Owner or Admin accounts
+  try {
+    const { sanityClient } = await import("@/lib/sanity/client");
+    const bcrypt = (await import("bcryptjs")).default;
+    const ownerDoc = await sanityClient.fetch(
+      `*[_type == "restaurantOwner" && lower(email) == $email][0]{
+        _id,
+        email,
+        passwordHash,
+        role,
+        "restaurantId": restaurant._ref,
+        "restaurantName": restaurant->name
+      }`,
+      { email: normalizedEmail }
+    );
+
+    if (ownerDoc) {
+      const isValidPassword = ownerDoc.passwordHash
+        ? await bcrypt.compare(password, ownerDoc.passwordHash)
+        : true;
+
+      if (isValidPassword) {
+        const cookieStore = await cookies();
+        const detectedRole = (ownerDoc.role === "superadmin" || ownerDoc.role === "admin")
+          ? "admin"
+          : "restaurant_owner";
+
+        cookieStore.set("tbites_demo_user", JSON.stringify({
+          id: ownerDoc._id,
+          email: ownerDoc.email,
+          role: detectedRole,
+          restaurantId: ownerDoc.restaurantId,
+          restaurantName: ownerDoc.restaurantName,
+        }), {
+          httpOnly: true,
+          path: "/",
+          maxAge: 60 * 60 * 24 * 7,
+        });
+
+        if (detectedRole === "admin") redirect("/admin");
+        redirect("/dashboard");
+      }
+    }
+  } catch (err: any) {
+    if (err?.digest?.startsWith("NEXT_REDIRECT")) throw err;
+  }
+
+  // 3. Check for Restaurant Owner demo credentials
+  if (normalizedEmail.includes("owner") || normalizedEmail.includes("restaurant")) {
+    const cookieStore = await cookies();
+    cookieStore.set("tbites_demo_user", JSON.stringify({
+      id: "owner-user-id",
+      email: normalizedEmail,
+      role: "restaurant_owner",
+      full_name: "Restaurant Owner",
+    }), {
+      httpOnly: true,
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7,
+    });
+    redirect("/dashboard");
+  }
+
+  // 4. Supabase Auth authentication
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data: authData, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
 
-  const isAdminPortal = formData.get("admin_portal") === "true" || email.toLowerCase().includes("superadmin");
-
-  if (isAdminPortal || error) {
-    try {
-      const { sanityClient } = await import("@/lib/sanity/client");
-      const bcrypt = (await import("bcryptjs")).default;
-      const ownerDoc = await sanityClient.fetch(
-        `*[_type == "restaurantOwner" && lower(email) == $email][0]{
-          _id,
-          email,
-          passwordHash,
-          role
-        }`,
-        { email: email.toLowerCase().trim() }
-      );
-
-      if (ownerDoc) {
-        if (ownerDoc.role === "superadmin" || ownerDoc.role === "admin") {
-          const isValidPassword = ownerDoc.passwordHash
-            ? await bcrypt.compare(password, ownerDoc.passwordHash)
-            : true;
-
-          if (isValidPassword) {
-            const cookieStore = await cookies();
-            cookieStore.set("tbites_demo_user", JSON.stringify({ id: ownerDoc._id, email, role: "admin" }), {
-              httpOnly: true,
-              path: "/",
-              maxAge: 60 * 60 * 24 * 7,
-            });
-            redirect("/admin");
-          }
-        }
-
-        if (!isAdminPortal) {
-          return {
-            message: "Restaurant owners must sign in through the Partner Portal at /owner.",
-          };
-        }
-      }
-    } catch (err: any) {
-      if (err?.digest?.startsWith("NEXT_REDIRECT")) throw err;
-    }
-
-    if (error && !isAdminPortal) {
-      return {
-        message: "Invalid email or password. Please check your credentials.",
-      };
-    }
+  if (error && !authData?.user) {
+    return {
+      message: "Invalid email or password. Please check your credentials.",
+    };
   }
 
-  // 2. Standard customer authentication - Set session & redirect to homepage /
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Determine user role from Supabase profiles table or metadata
+  let userRole = "customer";
+  if (authData?.user) {
+    const adminSupabase = await createAdminClient();
+    const { data: profile } = await adminSupabase
+      .from("profiles")
+      .select("role")
+      .eq("id", authData.user.id)
+      .single();
 
-  if (user) {
+    if (profile?.role) {
+      userRole = profile.role;
+    } else if (authData.user.user_metadata?.role) {
+      userRole = authData.user.user_metadata.role;
+    }
+
     const cookieStore = await cookies();
-    cookieStore.set("tbites_demo_user", JSON.stringify({ id: user.id, email: user.email, role: "customer" }), {
+    cookieStore.set("tbites_demo_user", JSON.stringify({
+      id: authData.user.id,
+      email: authData.user.email,
+      role: userRole,
+    }), {
       httpOnly: true,
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
     });
   }
 
-  // Customer login ALWAYS redirects to Customer Storefront (/)
+  // Route user based on detected role
+  if (userRole === "admin" || userRole === "superadmin") {
+    redirect("/admin");
+  }
+  if (userRole === "restaurant_owner" || userRole === "owner") {
+    redirect("/dashboard");
+  }
+
+  // Customer interface
   redirect("/");
 }
 
@@ -296,7 +356,7 @@ export async function logout(): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.delete("tbites_demo_user");
 
-  redirect("/owner");
+  redirect("/login");
 }
 
 /** Switch effective role for testing (Customer, Restaurant Owner, Admin). */
