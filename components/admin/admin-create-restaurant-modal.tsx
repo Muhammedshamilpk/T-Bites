@@ -160,23 +160,8 @@ export function AdminCreateRestaurantModal() {
                 </div>
               </div>
 
-              {/* Sanity Dataset Name */}
-              <div>
-                <label className="block text-xs font-bold text-foreground mb-1">
-                  Dedicated Sanity Dataset Name *
-                </label>
-                <div className="relative">
-                  <Database className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground-muted" />
-                  <input
-                    name="dataset_name"
-                    type="text"
-                    required
-                    defaultValue="restaurant_a"
-                    placeholder="e.g. restaurant_a, restaurant_b"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-surface text-foreground text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  />
-                </div>
-              </div>
+              {/* Sanity Dataset Name (Production Single Dataset Architecture) */}
+              <input name="dataset_name" type="hidden" value="production" />
 
               {/* Street Address */}
               <div>
