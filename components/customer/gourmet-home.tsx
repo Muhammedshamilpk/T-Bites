@@ -61,55 +61,25 @@ const CATEGORIES = [
   },
 ];
 
-const TOP_RESTAURANTS = [
-  {
-    id: "rest-lumiere",
-    name: "Lumière Kitchen",
-    cuisine: "French Fusion • Pastries • Coffee",
-    rating: "4.9",
-    reviewsCount: "500+",
-    time: "25-30 min",
-    distance: "1.2 km",
-    badge: "Top Rated",
-    badgeColor: "bg-orange-500/10 text-[#994700]",
-    image:
-      "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80",
-    status: "Open",
-    deliveryBadge: "Delivery Available",
-  },
-  {
-    id: "rest-umi",
-    name: "Umi Sushi Bar",
-    cuisine: "Japanese • Seafood • Rolls",
-    rating: "4.7",
-    reviewsCount: "1.2k+",
-    time: "35-40 min",
-    distance: "2.8 km",
-    badge: "Trending",
-    badgeColor: "bg-amber-500/10 text-amber-700",
-    image:
-      "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?auto=format&fit=crop&w=800&q=80",
-    status: "Open",
-    deliveryBadge: "Free Delivery",
-  },
-  {
-    id: "rest-dough",
-    name: "Dough & Fire",
-    cuisine: "Italian • Artisanal Pizza",
-    rating: "4.8",
-    reviewsCount: "850+",
-    time: "20-25 min",
-    distance: "0.8 km",
-    badge: "Closing Soon",
-    badgeColor: "bg-red-500/10 text-red-600",
-    image:
-      "https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=800&q=80",
-    status: "Closing Soon",
-    deliveryBadge: "Delivery Available",
-  },
-];
+export interface DynamicRestaurantItem {
+  id: string;
+  name: string;
+  description?: string | null;
+  address_line?: string;
+  city?: string;
+  phone?: string;
+  logo_url?: string | null;
+  banner_url?: string | null;
+  status?: "open" | "closed" | "holiday";
+}
 
-export function GourmetHome({ userName }: { userName?: string }) {
+export function GourmetHome({
+  userName,
+  restaurants = [],
+}: {
+  userName?: string;
+  restaurants?: DynamicRestaurantItem[];
+}) {
   const [searchQuery, setSearchQuery] = useState("");
   const { location, openModal } = useLocationStore();
 
@@ -293,74 +263,109 @@ export function GourmetHome({ userName }: { userName?: string }) {
                 Top Picks Near You
               </h2>
               <p className="text-xs text-[#5e5e5e] font-semibold mt-0.5">
-                Curated selection of high-end kitchens
+                Curated selection of active kitchens
               </p>
             </div>
-            <button suppressHydrationWarning className="w-10 h-10 flex items-center justify-center rounded-full border border-neutral-200 bg-white hover:shadow-md transition-all">
+            <Link href="/restaurants" className="w-10 h-10 flex items-center justify-center rounded-full border border-neutral-200 bg-white hover:shadow-md transition-all">
               <SlidersHorizontal className="w-4 h-4 text-[#251912]" />
-            </button>
+            </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {TOP_RESTAURANTS.map((r) => (
-              <div
-                key={r.id}
-                className="group bg-white rounded-3xl overflow-hidden ambient-glow cursor-pointer transition-all duration-500 hover:-translate-y-2 shadow-sm border border-neutral-100"
+          {restaurants.length === 0 ? (
+            <div className="bg-white rounded-3xl p-12 text-center ambient-glow border border-neutral-100 space-y-4 shadow-sm">
+              <div className="text-6xl">🏪</div>
+              <h3 className="text-xl font-black text-[#251912]">No Active Restaurants Yet</h3>
+              <p className="text-xs font-semibold text-[#5e5e5e] max-w-sm mx-auto">
+                Super Admins and Restaurant Owners can add real hotels and menu items from the Partner Portal.
+              </p>
+              <Link
+                href="/owner"
+                className="inline-flex items-center px-8 py-3.5 rounded-full bg-[#ff7a00] text-white font-black text-xs shadow-md hover:bg-[#994700] transition-all"
               >
-                <div className="relative h-64 overflow-hidden">
-                  <img
-                    src={r.image}
-                    alt={r.name}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                  />
-                  <div className="absolute top-4 left-4">
-                    <span className="px-3 py-1 bg-white/90 backdrop-blur-md rounded-full text-[#994700] text-xs font-black shadow-sm">
-                      {r.badge}
-                    </span>
-                  </div>
+                Partner & Admin Portal
+              </Link>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {restaurants.map((r) => {
+                const isOpened = r.status !== "closed";
+                const bannerPhoto =
+                  r.banner_url ||
+                  r.logo_url ||
+                  "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80";
 
-                  <button suppressHydrationWarning className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/30 backdrop-blur-md text-white hover:bg-white hover:text-red-500 transition-all">
-                    <Heart className="w-5 h-5" />
-                  </button>
+                return (
+                  <Link key={r.id} href={`/restaurants/${r.id}`}>
+                    <div className="group bg-white rounded-3xl overflow-hidden ambient-glow cursor-pointer transition-all duration-500 hover:-translate-y-2 shadow-sm border border-neutral-100 flex flex-col h-full">
+                      <div className="relative h-64 overflow-hidden bg-neutral-100">
+                        <img
+                          src={bannerPhoto}
+                          alt={r.name}
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                        />
+                        <div className="absolute top-4 left-4">
+                          <span className="px-3 py-1 bg-white/90 backdrop-blur-md rounded-full text-[#994700] text-xs font-black shadow-sm">
+                            VERIFIED
+                          </span>
+                        </div>
 
-                  <div className="absolute bottom-4 left-4">
-                    <div className="flex items-center gap-1.5 px-3 py-1 bg-white/90 backdrop-blur-md rounded-full text-[#251912] text-xs font-black">
-                      <Star className="w-3.5 h-3.5 fill-[#ff7a00] text-[#ff7a00]" />
-                      {r.rating} ({r.reviewsCount})
+                        <button suppressHydrationWarning className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/30 backdrop-blur-md text-white hover:bg-white hover:text-red-500 transition-all">
+                          <Heart className="w-5 h-5" />
+                        </button>
+
+                        <div className="absolute bottom-4 left-4">
+                          <div className="flex items-center gap-1.5 px-3 py-1 bg-white/90 backdrop-blur-md rounded-full text-[#251912] text-xs font-black">
+                            <Star className="w-3.5 h-3.5 fill-[#ff7a00] text-[#ff7a00]" />
+                            4.8 (Top Rated)
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-6 flex flex-col justify-between flex-1 space-y-4">
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-start">
+                            <h3 className="text-lg font-black text-[#251912] group-hover:text-[#994700] transition-colors">
+                              {r.name}
+                            </h3>
+                            <span
+                              className={`text-xs font-extrabold flex items-center gap-1 ${
+                                isOpened ? "text-emerald-600" : "text-neutral-500"
+                              }`}
+                            >
+                              <span
+                                className={`w-2 h-2 rounded-full ${
+                                  isOpened
+                                    ? "bg-emerald-500 animate-pulse"
+                                    : "bg-neutral-400"
+                                }`}
+                              />
+                              {isOpened ? "Open" : "Closed"}
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-[#5e5e5e] font-semibold line-clamp-2">
+                            {r.description || "Multi-Cuisine • Fast Food • Biriyani"}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-4 pt-4 border-t border-neutral-100 text-xs font-bold text-[#584235]">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-4 h-4 text-neutral-400" /> 25-35 MINS
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-4 h-4 text-neutral-400" /> {r.city || "Local Area"}
+                          </span>
+                          <span className="ml-auto px-3 py-1 bg-[#fff1ea] text-[#5c2800] rounded-full text-[10px] font-black uppercase tracking-wider">
+                            Free Delivery
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-
-                <div className="p-6 space-y-4">
-                  <div className="flex justify-between items-start">
-                    <h3 className="text-lg font-black text-[#251912]">
-                      {r.name}
-                    </h3>
-                    <span className="text-emerald-600 text-xs font-extrabold flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />{" "}
-                      {r.status}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-[#5e5e5e] font-semibold">
-                    {r.cuisine}
-                  </p>
-
-                  <div className="flex items-center gap-4 pt-4 border-t border-neutral-100 text-xs font-bold text-[#584235]">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-4 h-4 text-neutral-400" /> {r.time}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <MapPin className="w-4 h-4 text-neutral-400" /> {r.distance}
-                    </span>
-                    <span className="ml-auto px-3 py-1 bg-[#fff1ea] text-[#5c2800] rounded-full text-[10px] font-black uppercase tracking-wider">
-                      {r.deliveryBadge}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </section>
       </main>
     </div>
