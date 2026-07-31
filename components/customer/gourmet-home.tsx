@@ -274,16 +274,10 @@ export function GourmetHome({
           {restaurants.length === 0 ? (
             <div className="bg-white rounded-3xl p-12 text-center ambient-glow border border-neutral-100 space-y-4 shadow-sm">
               <div className="text-6xl">🏪</div>
-              <h3 className="text-xl font-black text-[#251912]">No Active Restaurants Yet</h3>
+              <h3 className="text-xl font-black text-[#251912]">No Active Restaurants Available</h3>
               <p className="text-xs font-semibold text-[#5e5e5e] max-w-sm mx-auto">
-                Super Admins and Restaurant Owners can add real hotels and menu items from the Partner Portal.
+                We are currently onboarding top local kitchens in your area. Please check back shortly!
               </p>
-              <Link
-                href="/owner"
-                className="inline-flex items-center px-8 py-3.5 rounded-full bg-[#ff7a00] text-white font-black text-xs shadow-md hover:bg-[#994700] transition-all"
-              >
-                Partner & Admin Portal
-              </Link>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

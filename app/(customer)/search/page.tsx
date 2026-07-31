@@ -224,7 +224,7 @@ export default function SearchPage() {
 
             <h3 className="text-2xl font-black text-[#251912]">No Stores Found</h3>
             <p className="text-xs text-[#584235] font-semibold max-w-sm mx-auto leading-relaxed">
-              We couldn&apos;t find any stores matching your search query. Super Admins and Restaurant Owners can add real restaurants from the Partner Portal.
+              We couldn&apos;t find any stores matching your search query. Try adjusting your search term or exploring all stores.
             </p>
 
             <div className="flex gap-3 pt-2">
