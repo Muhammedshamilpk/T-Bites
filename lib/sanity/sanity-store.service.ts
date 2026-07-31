@@ -74,6 +74,50 @@ export interface SanityDashboardSettings {
   taxPercentage?: number;
 }
 
+/** Fetch All Published & Active Restaurants from Sanity CMS production dataset for Customer Application */
+export async function getAllSanityRestaurants(): Promise<any[]> {
+  const query = `*[_type == "restaurant" && (status == "active" || status == "open" || status == "Open" || !defined(status))] | order(name asc) {
+    _id,
+    "id": _id,
+    name,
+    datasetName,
+    "slug": slug.current,
+    ownerName,
+    ownerEmail,
+    "phone": select(defined(contactNumber) => contactNumber, phone),
+    address,
+    "address_line": address,
+    "city": select(defined(city) => city, "Local Area"),
+    "status": select(
+      storeStatus == "Open" => "open",
+      storeStatus == "Closed" => "closed",
+      status == "active" => "open",
+      status == "open" => "open",
+      "open"
+    ),
+    "approval_status": "approved",
+    "logo_url": logo.asset->url,
+    "banner_url": select(
+      defined(banner.asset->url) => banner.asset->url,
+      defined(logo.asset->url) => logo.asset->url,
+      null
+    ),
+    description
+  }`;
+
+  const restaurants = await sanityFetch<any[]>({
+    query,
+    fallback: [],
+    datasetName: "production",
+  });
+
+  const { projectId } = await import("./client");
+  console.log(`[CUSTOMER QUERY LOG] ProjectId: ${projectId} | Dataset: production | Sanity Restaurants Returned: ${restaurants.length}`);
+  console.log(`[CUSTOMER QUERY LOG] Restaurant IDs:`, restaurants.map((r: any) => ({ id: r.id, name: r.name, datasetName: r.datasetName || "production", status: r.status })));
+
+  return restaurants;
+}
+
 /** 1. Fetch Restaurant Details from Sanity CMS */
 export async function getSanityRestaurantDetails(targetDataset?: string): Promise<SanityRestaurantDetails | null> {
   const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();

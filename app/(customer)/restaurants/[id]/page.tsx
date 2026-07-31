@@ -4,8 +4,9 @@ import Link from "next/link";
 import { CustomerMenuSection } from "@/components/customer/customer-menu-section";
 import { OffersCarousel } from "@/components/customer/offers-carousel";
 import { MapPin, Phone, Clock, Star, ArrowLeft } from "lucide-react";
+import { getSanityMenuItems, getAllSanityRestaurants, type SanityMenuItem } from "@/lib/sanity/sanity-store.service";
 
-import { getSanityMenuItems, type SanityMenuItem } from "@/lib/sanity/sanity-store.service";
+export const revalidate = 0; // Disable static cache for live restaurant & menu item updates
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -15,36 +16,53 @@ export default async function RestaurantDetailPage({ params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
 
-  // Fetch restaurant
-  const { data: restaurant, error } = await supabase
-    .from("restaurants")
-    .select("*, restaurant_hours(*), restaurant_categories(category_id, categories(*))")
-    .eq("id", id)
-    .single();
+  let restaurant: any = null;
 
-  if (error || !restaurant) {
+  // 1. Try Supabase DB lookup
+  try {
+    const { data } = await supabase
+      .from("restaurants")
+      .select("*, restaurant_hours(*), restaurant_categories(category_id, categories(*))")
+      .eq("id", id)
+      .single();
+    if (data) restaurant = data;
+  } catch {
+    // Fallback below
+  }
+
+  // 2. Fallback to Sanity CMS lookup
+  if (!restaurant) {
+    const sanityRestaurants = await getAllSanityRestaurants();
+    restaurant = sanityRestaurants.find((r: any) => r.id === id || r._id === id || r.slug === id);
+  }
+
+  if (!restaurant) {
     notFound();
   }
 
-  // Fetch food categories + items from Supabase
+  // 3. Fetch food categories + items from Supabase
   const { data: foodCategories } = await supabase
     .from("food_categories")
     .select("*")
-    .eq("restaurant_id", id)
+    .eq("restaurant_id", restaurant.id || id)
     .order("display_order");
 
   const { data: dbFoodItems } = await supabase
     .from("food_items")
     .select("*, food_images(*), food_categories(name)")
-    .eq("restaurant_id", id)
+    .eq("restaurant_id", restaurant.id || id)
     .eq("is_available", true)
     .order("display_order");
 
-  // Fetch items uploaded by owner via Sanity CMS / Owner Portal
-  const sanityMenuItems = await getSanityMenuItems();
+  // 4. Fetch items uploaded by owner via Sanity CMS target dataset
+  const targetDataset = restaurant.datasetName || "production";
+  const sanityMenuItems = await getSanityMenuItems(targetDataset);
+
+  console.log(`[RESTAURANT DETAIL LOG] ID: ${id} | Name: ${restaurant.name} | Dataset: ${targetDataset} | Sanity Menu Items Count: ${sanityMenuItems.length}`);
+
   const formattedSanityItems = (sanityMenuItems || []).map((s: SanityMenuItem) => ({
     id: s._id,
-    restaurant_id: id,
+    restaurant_id: restaurant.id || id,
     food_category_id: null,
     name: s.name,
     description: s.description || null,
@@ -87,7 +105,7 @@ export default async function RestaurantDetailPage({ params }: Props) {
   });
 
   // Cover photo fallback: Use banner_url or first food item photo
-  const coverPhoto = restaurant.banner_url || foodImageUrls[0] || null;
+  const coverPhoto = restaurant.banner_url || restaurant.logo_url || foodImageUrls[0] || null;
 
   return (
     <div className="space-y-6 pb-16">

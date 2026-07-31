@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { LocationModal } from "@/components/customer/location-modal";
 import { createClient } from "@/lib/supabase/client";
+import { getAllSanityRestaurants } from "@/lib/sanity/sanity-store.service";
 
 const FILTER_CHIPS = [
   { id: "all", label: "All Stores" },
@@ -44,13 +45,15 @@ export default function SearchPage() {
     async function fetchRealRestaurants() {
       try {
         const supabase = createClient();
-        const { data } = await supabase
+        const { data: dbData } = await supabase
           .from("restaurants")
           .select("*, food_items(food_images(storage_path))")
           .eq("approval_status", "approved")
           .order("name");
 
-        const formatted = (data || []).map((r: any) => {
+        const sanityData = await getAllSanityRestaurants();
+
+        const formattedDb = (dbData || []).map((r: any) => {
           let firstFoodImage: string | null = null;
           if (r.food_items && r.food_items.length > 0) {
             for (const item of r.food_items) {
@@ -69,7 +72,18 @@ export default function SearchPage() {
               "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80",
           };
         });
-        setRestaurants(formatted);
+
+        // Deduplicate restaurants by name
+        const map = new Map<string, any>();
+        [...sanityData, ...formattedDb].forEach((r) => {
+          if (r && r.name && !map.has(r.name.toLowerCase())) {
+            map.set(r.name.toLowerCase(), r);
+          }
+        });
+
+        const combined = Array.from(map.values());
+        console.log(`[SEARCH PAGE LOG] Total Searchable Restaurants Count: ${combined.length}`);
+        setRestaurants(combined);
       } catch (err) {
         console.error("Failed to load real restaurants:", err);
       } finally {
