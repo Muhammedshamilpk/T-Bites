@@ -10,10 +10,10 @@ export function LocationModal() {
   const [mounted, setMounted] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
 
-  // Form states
-  const [manualAddress, setManualAddress] = useState(location.address || "");
-  const [city, setCity] = useState(location.city || "Bangalore");
-  const [landmark, setLandmark] = useState(location.landmark || "");
+  // Form states - empty by default unless location is explicitly set by user
+  const [manualAddress, setManualAddress] = useState(location.isSet ? location.address : "");
+  const [city, setCity] = useState(location.isSet ? location.city : "");
+  const [landmark, setLandmark] = useState(location.isSet ? (location.landmark || "") : "");
   const [showManualForm, setShowManualForm] = useState(false);
 
   useEffect(() => {
@@ -174,7 +174,7 @@ export function LocationModal() {
                   required
                   value={manualAddress}
                   onChange={(e) => setManualAddress(e.target.value)}
-                  placeholder="e.g. Flat / Street Name, Area"
+                  placeholder="Enter house / street address"
                   className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-foreground text-xs font-medium focus:outline-none focus:border-primary"
                 />
               </div>
@@ -189,7 +189,7 @@ export function LocationModal() {
                     required
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
-                    placeholder="Bangalore"
+                    placeholder="Enter city"
                     className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-foreground text-xs font-medium focus:outline-none focus:border-primary"
                   />
                 </div>
@@ -202,7 +202,7 @@ export function LocationModal() {
                     type="text"
                     value={landmark}
                     onChange={(e) => setLandmark(e.target.value)}
-                    placeholder="Near Water Tank"
+                    placeholder="Enter landmark (optional)"
                     className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-foreground text-xs font-medium focus:outline-none focus:border-primary"
                   />
                 </div>

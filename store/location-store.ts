@@ -38,7 +38,7 @@ export const useLocationStore = create<LocationStore>()(
       closeModal: () => set({ isModalOpen: false }),
     }),
     {
-      name: "tbites-delivery-location-v2",
+      name: "tbites-delivery-location-v3",
     }
   )
 );
