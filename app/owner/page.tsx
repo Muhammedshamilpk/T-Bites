@@ -1,10 +1,10 @@
 "use client";
 
-import { useActionState, useState, useRef } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import { ownerLoginAction } from "@/actions/auth.actions";
 import type { AuthFormState } from "@/actions/auth.actions";
-import { Mail, Lock, Store, Eye, EyeOff, Loader2, ShieldAlert, Shield, ArrowRight } from "lucide-react";
+import { Mail, Lock, Store, Eye, EyeOff, Loader2, ShieldAlert } from "lucide-react";
 
 export default function OwnerPortalPage() {
   const [state, action, pending] = useActionState<AuthFormState, FormData>(
@@ -13,26 +13,13 @@ export default function OwnerPortalPage() {
   );
 
   const [showPassword, setShowPassword] = useState(false);
-  const formRef = useRef<HTMLFormElement>(null);
-  const [emailInput, setEmailInput] = useState("");
-  const [passwordInput, setPasswordInput] = useState("");
-
-  const handleDemoPreset = (email: string, pass: string) => {
-    setEmailInput(email);
-    setPasswordInput(pass);
-    setTimeout(() => {
-      if (formRef.current) {
-        formRef.current.requestSubmit();
-      }
-    }, 50);
-  };
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-background">
-      {/* Left Branding Panel (Vibrant Red & Purple Gradient) */}
-      <div className="hidden lg:flex flex-col justify-between p-12 bg-gradient-to-br from-red-600 via-red-700 to-purple-900 text-white relative overflow-hidden">
+      {/* Left Branding Panel (Solid Pure Red) */}
+      <div className="hidden lg:flex flex-col justify-between p-12 bg-red-600 text-white relative overflow-hidden">
         <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-white/10 blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-purple-500/20 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-black/10 blur-3xl pointer-events-none" />
 
         {/* Top Logo */}
         <div className="relative z-10 flex items-center justify-between">
@@ -82,7 +69,7 @@ export default function OwnerPortalPage() {
           </div>
         )}
 
-        <form ref={formRef} action={action} className="space-y-4">
+        <form action={action} className="space-y-4">
           {/* Email */}
           <div>
             <label htmlFor="email" className="block text-xs font-extrabold text-foreground uppercase tracking-wider mb-1.5">
@@ -96,8 +83,6 @@ export default function OwnerPortalPage() {
                 type="email"
                 autoComplete="email"
                 required
-                value={emailInput}
-                onChange={(e) => setEmailInput(e.target.value)}
                 placeholder="owner@restaurant.com or admin@tbites.com"
                 className="w-full pl-10 pr-4 py-3 rounded-xl border border-border bg-surface text-foreground placeholder:text-foreground-muted/40 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all font-medium text-sm"
               />
@@ -117,8 +102,6 @@ export default function OwnerPortalPage() {
                 type={showPassword ? "text" : "password"}
                 autoComplete="current-password"
                 required
-                value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)}
                 placeholder="••••••••"
                 className="w-full pl-10 pr-12 py-3 rounded-xl border border-border bg-surface text-foreground placeholder:text-foreground-muted/40 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all font-medium text-sm"
               />
@@ -142,42 +125,6 @@ export default function OwnerPortalPage() {
             {pending ? "Authenticating..." : "Sign In to Portal"}
           </button>
         </form>
-
-        {/* Quick Demo Accounts for Owner & Admin */}
-        <div className="pt-4 border-t border-border space-y-3">
-          <p className="text-xs font-bold text-foreground-muted uppercase tracking-wider text-center">
-            ⚡ Quick 1-Click Role Login
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => handleDemoPreset("owner@restaurant.com", "OwnerSecret123!")}
-              className="p-3 rounded-xl bg-surface border border-border hover:border-orange-500/50 text-foreground transition-all flex flex-col items-center gap-1 group text-center"
-            >
-              <Store className="w-5 h-5 text-orange-500 group-hover:scale-110 transition-transform" />
-              <span className="text-xs font-extrabold block">Restaurant Owner</span>
-              <span className="text-[10px] text-foreground-muted">Goes to Kitchen Dashboard (/dashboard)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleDemoPreset("superadmin@tbites.com", "SuperAdminSecret123!")}
-              className="p-3 rounded-xl bg-surface border border-border hover:border-purple-500/50 text-foreground transition-all flex flex-col items-center gap-1 group text-center"
-            >
-              <Shield className="w-5 h-5 text-purple-500 group-hover:scale-110 transition-transform" />
-              <span className="text-xs font-extrabold block">Super Admin</span>
-              <span className="text-[10px] text-foreground-muted">Goes to Admin Portal (/admin)</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Switch to Customer Login */}
-        <div className="p-4 rounded-2xl bg-surface border border-border text-xs text-foreground-muted flex items-center justify-between">
-          <span>Looking to order food as a Customer?</span>
-          <Link href="/login" className="font-extrabold text-primary hover:underline flex items-center gap-1 shrink-0">
-            Customer Login <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
       </div>
     </div>
   );
