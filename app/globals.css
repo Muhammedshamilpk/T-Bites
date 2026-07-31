@@ -1,0 +1,134 @@
+@import "tailwindcss";
+
+/* ========================================
+   T-Bites Design System — CSS Custom Properties
+   ======================================== */
+
+@theme inline {
+  /* Brand Colors */
+  --color-primary: oklch(0.65 0.24 30);        /* Warm vibrant orange */
+  --color-primary-light: oklch(0.75 0.2 30);
+  --color-primary-dark: oklch(0.52 0.22 30);
+
+  --color-secondary: oklch(0.55 0.15 160);      /* Teal accent */
+  --color-secondary-light: oklch(0.7 0.12 160);
+
+  /* Neutral Palette */
+  --color-background: oklch(0.985 0 0);
+  --color-surface: oklch(1 0 0);
+  --color-surface-hover: oklch(0.97 0 0);
+  --color-foreground: oklch(0.15 0 0);
+  --color-foreground-muted: oklch(0.45 0 0);
+  --color-border: oklch(0.9 0 0);
+  --color-border-hover: oklch(0.82 0 0);
+
+  /* Semantic Colors */
+  --color-success: oklch(0.6 0.18 145);
+  --color-warning: oklch(0.75 0.18 75);
+  --color-error: oklch(0.55 0.22 25);
+  --color-info: oklch(0.6 0.15 250);
+
+  /* Typography */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  /* Spacing Scale */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+
+  /* Shadows */
+  --shadow-xs: 0 1px 2px oklch(0 0 0 / 0.04);
+  --shadow-sm: 0 1px 3px oklch(0 0 0 / 0.06), 0 1px 2px oklch(0 0 0 / 0.04);
+  --shadow-md: 0 4px 6px oklch(0 0 0 / 0.06), 0 2px 4px oklch(0 0 0 / 0.04);
+  --shadow-lg: 0 10px 15px oklch(0 0 0 / 0.08), 0 4px 6px oklch(0 0 0 / 0.04);
+  --shadow-xl: 0 20px 25px oklch(0 0 0 / 0.1), 0 8px 10px oklch(0 0 0 / 0.04);
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ========================================
+   Base Styles
+   ======================================== */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #faf7f2;
+  background-image: 
+    radial-gradient(at 10% 15%, rgba(251, 146, 60, 0.08) 0px, transparent 40%),
+    radial-gradient(at 90% 10%, rgba(239, 68, 68, 0.07) 0px, transparent 45%),
+    radial-gradient(at 50% 75%, rgba(245, 158, 11, 0.06) 0px, transparent 50%),
+    radial-gradient(at 85% 85%, rgba(244, 63, 94, 0.07) 0px, transparent 45%);
+  background-attachment: fixed;
+  color: oklch(0.18 0 0);
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Focus ring utility */
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: oklch(0.8 0 0);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.65 0 0);
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Ambient Glow & Custom Utilities */
+.ambient-glow {
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.04);
+}
+.glass-nav {
+  background: rgba(255, 248, 245, 0.85);
+  backdrop-filter: blur(20px);
+}
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+  100% { transform: translateY(0px); }
+}
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+.category-chip:nth-child(odd) { animation-delay: 0.5s; }
+.category-chip:nth-child(even) { animation-delay: 1.2s; }
+
