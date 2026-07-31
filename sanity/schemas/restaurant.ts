@@ -1,8 +1,8 @@
 import { defineType, defineField } from "sanity";
 
-export const restaurantSchema = defineType({
+export const restaurant = defineType({
   name: "restaurant",
-  title: "Restaurant Profile",
+  title: "Restaurant",
   type: "document",
   fields: [
     defineField({
@@ -12,24 +12,23 @@ export const restaurantSchema = defineType({
       validation: (Rule) => Rule.required(),
     }),
     defineField({
+      name: "datasetName",
+      title: "Sanity Dataset Name",
+      type: "string",
+      description: "Dedicated Sanity Dataset for this restaurant (e.g. restaurant_a, restaurant_b)",
+      initialValue: "production",
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: "slug",
+      title: "Slug",
+      type: "slug",
+      options: { source: "name", maxLength: 96 },
+    }),
+    defineField({
       name: "ownerName",
-      title: "Owner Name",
+      title: "Owner Full Name",
       type: "string",
-    }),
-    defineField({
-      name: "email",
-      title: "Email Address",
-      type: "string",
-    }),
-    defineField({
-      name: "phone",
-      title: "Phone Number",
-      type: "string",
-    }),
-    defineField({
-      name: "address",
-      title: "Address",
-      type: "text",
     }),
     defineField({
       name: "logo",
@@ -38,53 +37,43 @@ export const restaurantSchema = defineType({
       options: { hotspot: true },
     }),
     defineField({
-      name: "bannerImage",
-      title: "Banner Image",
-      type: "image",
-      options: { hotspot: true },
+      name: "address",
+      title: "Address Line",
+      type: "string",
     }),
     defineField({
-      name: "description",
-      title: "Description",
-      type: "text",
+      name: "contactNumber",
+      title: "Contact Phone Number",
+      type: "string",
     }),
     defineField({
-      name: "storeStatus",
-      title: "Store Status",
+      name: "ownerEmail",
+      title: "Owner Email Address",
+      type: "string",
+      validation: (Rule) => Rule.required().email(),
+    }),
+    defineField({
+      name: "status",
+      title: "Status",
       type: "string",
       options: {
         list: [
-          { title: "Open", value: "Open" },
-          { title: "Closed", value: "Closed" },
-          { title: "Holiday", value: "Holiday" },
+          { title: "Active", value: "active" },
+          { title: "Suspended", value: "suspended" },
+          { title: "Deactivated", value: "deactivated" },
         ],
         layout: "radio",
       },
-      initialValue: "Open",
+      initialValue: "active",
+      validation: (Rule) => Rule.required(),
     }),
     defineField({
-      name: "deliveryRadius",
-      title: "Delivery Radius (km)",
-      type: "number",
-      initialValue: 8.5,
-    }),
-    defineField({
-      name: "operatingHours",
-      title: "Operating Hours",
-      type: "string",
-      initialValue: "Mon - Sat: 09:00 AM - 10:00 PM",
-    }),
-    defineField({
-      name: "notificationsEnabled",
-      title: "Notifications Enabled",
-      type: "boolean",
-      initialValue: true,
-    }),
-    defineField({
-      name: "acceptDelivery",
-      title: "Accept Delivery",
-      type: "boolean",
-      initialValue: true,
+      name: "createdAt",
+      title: "Created At",
+      type: "datetime",
+      initialValue: () => new Date().toISOString(),
     }),
   ],
 });
+
+export const restaurantSchema = restaurant;

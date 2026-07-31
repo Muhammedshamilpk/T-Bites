@@ -12,10 +12,23 @@ export const restaurantSchema = defineType({
       validation: (Rule) => Rule.required(),
     }),
     defineField({
+      name: "datasetName",
+      title: "Sanity Dataset Name",
+      type: "string",
+      description: "Dedicated Sanity Dataset for this restaurant (e.g. restaurant_a, restaurant_b)",
+      initialValue: "production",
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
       name: "slug",
       title: "Slug",
       type: "slug",
       options: { source: "name", maxLength: 96 },
+    }),
+    defineField({
+      name: "ownerName",
+      title: "Owner Full Name",
+      type: "string",
     }),
     defineField({
       name: "logo",
@@ -47,6 +60,7 @@ export const restaurantSchema = defineType({
         list: [
           { title: "Active", value: "active" },
           { title: "Suspended", value: "suspended" },
+          { title: "Deactivated", value: "deactivated" },
         ],
         layout: "radio",
       },

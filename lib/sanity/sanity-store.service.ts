@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { sanityFetch, sanityClient, urlFor } from "./client";
+import { sanityFetch, getSanityClientForDataset, urlFor } from "./client";
+import { getEffectiveDatasetFromCookies } from "./datasetResolver";
 
 export interface SanityRestaurantDetails {
   _id: string;
@@ -16,6 +17,7 @@ export interface SanityRestaurantDetails {
   operatingHours?: string;
   notificationsEnabled?: boolean;
   acceptDelivery?: boolean;
+  datasetName?: string;
 }
 
 export interface SanityMenuItem {
@@ -73,7 +75,8 @@ export interface SanityDashboardSettings {
 }
 
 /** 1. Fetch Restaurant Details from Sanity CMS */
-export async function getSanityRestaurantDetails(): Promise<SanityRestaurantDetails | null> {
+export async function getSanityRestaurantDetails(targetDataset?: string): Promise<SanityRestaurantDetails | null> {
+  const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
   const query = `*[_type == "restaurant"][0] {
     _id,
     name,
@@ -86,26 +89,32 @@ export async function getSanityRestaurantDetails(): Promise<SanityRestaurantDeta
     deliveryRadius,
     operatingHours,
     notificationsEnabled,
-    acceptDelivery
+    acceptDelivery,
+    datasetName
   }`;
 
   return await sanityFetch<SanityRestaurantDetails | null>({
     query,
     fallback: null,
+    datasetName: activeDataset,
   });
 }
 
 /** Update Restaurant Profile in Sanity CMS */
-export async function updateSanityRestaurantProfileAction(data: Partial<SanityRestaurantDetails>) {
+export async function updateSanityRestaurantProfileAction(data: Partial<SanityRestaurantDetails>, targetDataset?: string) {
   try {
-    const restaurant = await getSanityRestaurantDetails();
+    const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
+    const client = getSanityClientForDataset(activeDataset);
+    const restaurant = await getSanityRestaurantDetails(activeDataset);
+
     if (restaurant?._id) {
-      await sanityClient.patch(restaurant._id).set(data).commit();
+      await client.patch(restaurant._id).set(data).commit();
     } else {
-      await sanityClient.create({
+      await client.create({
         _type: "restaurant",
         name: data.name || "T-Bites Restaurant",
         storeStatus: "Open",
+        datasetName: activeDataset,
         ...data,
       });
     }
@@ -119,7 +128,8 @@ export async function updateSanityRestaurantProfileAction(data: Partial<SanityRe
 }
 
 /** 2. Fetch Menu Items from Sanity CMS (Includes Studio Drafts) */
-export async function getSanityMenuItems(): Promise<SanityMenuItem[]> {
+export async function getSanityMenuItems(targetDataset?: string): Promise<SanityMenuItem[]> {
+  const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
   const query = `*[_type == "menuItem"] | order(_createdAt desc) {
     _id,
     name,
@@ -136,6 +146,7 @@ export async function getSanityMenuItems(): Promise<SanityMenuItem[]> {
   const items = await sanityFetch<SanityMenuItem[]>({
     query,
     fallback: [],
+    datasetName: activeDataset,
   });
 
   // Deduplicate items if both draft and published version exist
@@ -152,8 +163,11 @@ export async function getSanityMenuItems(): Promise<SanityMenuItem[]> {
 }
 
 /** Add Menu Item to Sanity CMS with direct image asset upload */
-export async function addSanityMenuItemAction(formData: FormData) {
+export async function addSanityMenuItemAction(formData: FormData, targetDataset?: string) {
   try {
+    const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
+    const client = getSanityClientForDataset(activeDataset);
+
     const name = (formData.get("name") as string || "").trim();
     const price = parseFloat(formData.get("price") as string) || 0;
     const description = (formData.get("description") as string || "").trim();
@@ -166,7 +180,7 @@ export async function addSanityMenuItemAction(formData: FormData) {
 
     let imageAssetRef: any = null;
     if (imageFile && imageFile.size > 0) {
-      const asset = await sanityClient.assets.upload("image", imageFile, {
+      const asset = await client.assets.upload("image", imageFile, {
         filename: imageFile.name,
       });
       imageAssetRef = {
@@ -193,10 +207,13 @@ export async function addSanityMenuItemAction(formData: FormData) {
       docData.image = imageAssetRef;
     }
 
-    const created = await sanityClient.create(docData);
-    const imageUrl = imageAssetRef ? urlFor(imageAssetRef) : "";
+    const created = await client.create(docData);
+    const imageUrl = imageAssetRef ? urlFor(imageAssetRef, activeDataset) : "";
 
     revalidatePath("/dashboard/menu");
+    revalidatePath("/");
+    revalidatePath("/restaurants");
+    revalidatePath("/search");
     return { success: true, item: { ...created, imageUrl } };
   } catch (error: any) {
     console.error("Sanity add item error:", error);
@@ -204,9 +221,12 @@ export async function addSanityMenuItemAction(formData: FormData) {
   }
 }
 
-/** Update Menu Item in Sanity CMS (Syncs directly to Sanity Studio) */
-export async function updateSanityMenuItemAction(id: string, formData: FormData) {
+/** Update Menu Item in Sanity CMS */
+export async function updateSanityMenuItemAction(id: string, formData: FormData, targetDataset?: string) {
   try {
+    const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
+    const client = getSanityClientForDataset(activeDataset);
+
     const name = (formData.get("name") as string || "").trim();
     const price = parseFloat(formData.get("price") as string) || 0;
     const description = (formData.get("description") as string || "").trim();
@@ -221,7 +241,7 @@ export async function updateSanityMenuItemAction(id: string, formData: FormData)
     };
 
     if (imageFile && imageFile.size > 0) {
-      const asset = await sanityClient.assets.upload("image", imageFile, {
+      const asset = await client.assets.upload("image", imageFile, {
         filename: imageFile.name,
       });
       patchData.image = {
@@ -234,9 +254,8 @@ export async function updateSanityMenuItemAction(id: string, formData: FormData)
     }
 
     if (!id.startsWith("demo-") && !id.startsWith("sanity-item-")) {
-      await sanityClient.patch(id).set(patchData).commit();
+      await client.patch(id).set(patchData).commit();
     } else {
-      // Create new live document in Sanity CMS if updating a sample item
       const docData: any = {
         _type: "menuItem",
         name,
@@ -248,10 +267,12 @@ export async function updateSanityMenuItemAction(id: string, formData: FormData)
         preparationTime: "15 mins",
       };
       if (patchData.image) docData.image = patchData.image;
-      await sanityClient.create(docData);
+      await client.create(docData);
     }
 
     revalidatePath("/dashboard/menu");
+    revalidatePath("/");
+    revalidatePath("/restaurants");
     return { success: true };
   } catch (error: any) {
     console.error("Sanity update item error:", error);
@@ -260,12 +281,14 @@ export async function updateSanityMenuItemAction(id: string, formData: FormData)
 }
 
 /** Toggle Menu Item Availability in Sanity CMS */
-export async function toggleSanityMenuItemAction(id: string, isAvailable: boolean) {
+export async function toggleSanityMenuItemAction(id: string, isAvailable: boolean, targetDataset?: string) {
   try {
+    const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
+    const client = getSanityClientForDataset(activeDataset);
     const cleanId = id.replace("drafts.", "");
     await Promise.allSettled([
-      sanityClient.patch(cleanId).set({ isAvailable }).commit(),
-      sanityClient.patch(`drafts.${cleanId}`).set({ isAvailable }).commit(),
+      client.patch(cleanId).set({ isAvailable }).commit(),
+      client.patch(`drafts.${cleanId}`).set({ isAvailable }).commit(),
     ]);
     revalidatePath("/dashboard/menu");
     return { success: true };
@@ -275,13 +298,15 @@ export async function toggleSanityMenuItemAction(id: string, isAvailable: boolea
   }
 }
 
-/** Delete Menu Item from Sanity CMS (Removes both Draft & Published copies) */
-export async function deleteSanityMenuItemAction(id: string) {
+/** Delete Menu Item from Sanity CMS */
+export async function deleteSanityMenuItemAction(id: string, targetDataset?: string) {
   try {
+    const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
+    const client = getSanityClientForDataset(activeDataset);
     const cleanId = id.replace("drafts.", "");
     await Promise.allSettled([
-      sanityClient.delete(cleanId),
-      sanityClient.delete(`drafts.${cleanId}`),
+      client.delete(cleanId),
+      client.delete(`drafts.${cleanId}`),
     ]);
     revalidatePath("/dashboard/menu");
     return { success: true };
@@ -292,7 +317,8 @@ export async function deleteSanityMenuItemAction(id: string) {
 }
 
 /** 3. Fetch Kitchen Orders from Sanity CMS */
-export async function getSanityOrders(): Promise<SanityOrder[]> {
+export async function getSanityOrders(targetDataset?: string): Promise<SanityOrder[]> {
+  const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
   const query = `*[_type == "order"] | order(orderTime desc) {
     _id,
     "orderId": orderId,
@@ -316,13 +342,17 @@ export async function getSanityOrders(): Promise<SanityOrder[]> {
   return await sanityFetch<SanityOrder[]>({
     query,
     fallback: [],
+    datasetName: activeDataset,
   });
 }
 
 /** Create Order in Sanity CMS */
-export async function createSanityOrderAction(orderData: any) {
+export async function createSanityOrderAction(orderData: any, targetDataset?: string) {
   try {
-    const created = await sanityClient.create({
+    const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
+    const client = getSanityClientForDataset(activeDataset);
+
+    const created = await client.create({
       _type: "order",
       orderId: orderData.orderId || `ORD-${Date.now().toString().slice(-4)}`,
       customerName: orderData.customerName || "Customer",
@@ -349,12 +379,15 @@ export async function createSanityOrderAction(orderData: any) {
 }
 
 /** Update Order Status in Sanity CMS */
-export async function updateSanityOrderStatusAction(id: string, status: string) {
+export async function updateSanityOrderStatusAction(id: string, status: string, targetDataset?: string) {
   try {
+    const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
+    const client = getSanityClientForDataset(activeDataset);
+
     if (id.startsWith("ORD-")) {
       return { success: true };
     }
-    await sanityClient.patch(id).set({ orderStatus: status }).commit();
+    await client.patch(id).set({ orderStatus: status }).commit();
     revalidatePath("/dashboard/orders");
     return { success: true };
   } catch (error: any) {
@@ -364,7 +397,8 @@ export async function updateSanityOrderStatusAction(id: string, status: string) 
 }
 
 /** 4. Fetch Categories from Sanity CMS */
-export async function getSanityCategories(): Promise<SanityCategory[]> {
+export async function getSanityCategories(targetDataset?: string): Promise<SanityCategory[]> {
+  const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
   const query = `*[_type == "category"] | order(displayOrder asc) {
     _id,
     name,
@@ -381,11 +415,13 @@ export async function getSanityCategories(): Promise<SanityCategory[]> {
       { _id: "cat-4", name: "Beverages", displayOrder: 4 },
       { _id: "cat-5", name: "Chef's Specials", displayOrder: 5 },
     ],
+    datasetName: activeDataset,
   });
 }
 
 /** 5. Fetch Dashboard Settings from Sanity CMS */
-export async function getSanityDashboardSettings(): Promise<SanityDashboardSettings> {
+export async function getSanityDashboardSettings(targetDataset?: string): Promise<SanityDashboardSettings> {
+  const activeDataset = targetDataset || await getEffectiveDatasetFromCookies();
   const query = `*[_type == "dashboardSettings"][0] {
     _id,
     notificationSound,
@@ -406,5 +442,6 @@ export async function getSanityDashboardSettings(): Promise<SanityDashboardSetti
       currency: "INR (₹)",
       taxPercentage: 8.5,
     },
+    datasetName: activeDataset,
   });
 }

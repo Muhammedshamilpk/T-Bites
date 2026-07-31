@@ -320,17 +320,19 @@ export async function ownerLoginAction(
         email,
         passwordHash,
         role,
+        datasetName,
         "restaurantId": restaurant._ref,
         "restaurantStatus": restaurant->status,
-        "restaurantName": restaurant->name
+        "restaurantName": restaurant->name,
+        "restaurantDataset": restaurant->datasetName
       }`,
       { email }
     );
 
     if (ownerDoc) {
-      if (ownerDoc.restaurantStatus === "suspended") {
+      if (ownerDoc.restaurantStatus === "suspended" || ownerDoc.restaurantStatus === "deactivated") {
         return {
-          message: "Your restaurant account has been suspended by the platform admin.",
+          message: "Your restaurant account has been suspended or deactivated by the platform admin.",
         };
       }
 
@@ -345,14 +347,24 @@ export async function ownerLoginAction(
       const cookieStore = await cookies();
       const isSuperAdmin = ownerDoc.role === "superadmin" || ownerDoc.role === "admin";
       const userRole = isSuperAdmin ? "admin" : "restaurant_owner";
+      const assignedDataset = isSuperAdmin
+        ? "production"
+        : ownerDoc.restaurantDataset || ownerDoc.datasetName || "restaurant_a";
 
       cookieStore.set("tbites_demo_user", JSON.stringify({
         id: ownerDoc._id,
         email: ownerDoc.email,
         role: userRole,
+        datasetName: assignedDataset,
         restaurantId: ownerDoc.restaurantId,
         restaurantName: ownerDoc.restaurantName,
       }), {
+        httpOnly: true,
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7,
+      });
+
+      cookieStore.set("tbites_dataset", assignedDataset, {
         httpOnly: true,
         path: "/",
         maxAge: 60 * 60 * 24 * 7,
